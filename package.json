@@ -1,0 +1,27 @@
+{
+  "name": "beacon-system",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test:e2e": "LD_LIBRARY_PATH=$PWD/.local/lib/extract/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH ./node_modules/.bin/playwright test e2e/owner-flow.spec.ts",
+    "dev:up": "node scripts/dev-runtime.mjs up",
+    "dev:down": "node scripts/dev-runtime.mjs down",
+    "dev:status": "node scripts/dev-runtime.mjs status",
+    "db:generate": "cd prisma && npx prisma generate",
+    "db:push": "cd prisma && npx prisma db push",
+    "db:migrate": "cd prisma && npx prisma migrate dev"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1"
+  }
+}

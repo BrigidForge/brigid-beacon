@@ -1,0 +1,204 @@
+// BrigidVault Beacon – canonical schema for vault metadata, events, and status snapshots.
+// See docs/BEACON_MVP_SPEC.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Vault {
+  id         String   @id // vault address (checksummed)
+  chainId    Int
+  owner      String
+  token      String
+  createdAt  DateTime @default(now())
+
+  // Immutable config (from deployment event)
+  totalAllocation   String
+  startTime         String // unix seconds
+  cliffDuration     String
+  intervalDuration  String
+  intervalCount     String
+  cancelWindow      String
+  withdrawalDelay   String
+  executionWindow   String
+
+  deployedAtBlock Int
+  deployedAtTx    String
+  deployer        String
+
+  events         BeaconEvent[]
+  snapshots      VaultSnapshot[]
+  claimNonces    ClaimNonce[]
+  claims         VaultClaim[]
+  subscriptions  NotificationSubscription[]
+}
+
+model BeaconEvent {
+  id              String    @id // stable: chainId:txHash:logIndex
+  vaultAddress    String
+  kind            String    // NormalizedEventKind
+  blockNumber     Int
+  transactionHash String
+  logIndex        Int
+  timestamp       DateTime
+  payload         Json
+  dispatchedAt    DateTime? // set when notification has been sent (rate limiting / dedup)
+
+  vault       Vault                  @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
+  deliveries  NotificationDelivery[]
+
+  @@index([vaultAddress, blockNumber, logIndex])
+  @@index([vaultAddress, kind])
+  @@index([dispatchedAt])
+}
+
+model VaultSnapshot {
+  id           String   @id @default(cuid())
+  vaultAddress String
+  blockNumber  Int
+  updatedAt    DateTime
+
+  // On-chain state at this block
+  funded               Boolean
+  totalWithdrawn      String
+  totalExcessWithdrawn String
+  vestedAmount         String
+  protectedOutstanding String
+  excessBalance        String
+  availableToWithdraw  String
+  excessAvailable      String
+  state                String // VaultState
+  pendingRequestJson   Json?  // null or PendingRequestSummary
+
+  vault Vault @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
+
+  @@index([vaultAddress])
+  @@index([vaultAddress, blockNumber])
+}
+
+model IndexerState {
+  id                 String   @id // e.g. "default" or chainId
+  lastBlockNumber    Int      @default(0)
+  lastBlockHash      String?
+  lastIndexedAt      DateTime?
+  lastIndexerRunAt   DateTime?
+  lastDispatcherRunAt DateTime?
+  lastErrorAt        DateTime?
+  lastErrorMessage   String?
+  discoveryMode      String?
+  updatedAt          DateTime @updatedAt
+}
+
+model ClaimNonce {
+  id           String   @id @default(cuid())
+  vaultAddress String
+  ownerAddress String
+  nonce        String   @unique
+  issuedAt     DateTime
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime @default(now())
+
+  vault Vault @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
+
+  @@index([vaultAddress])
+  @@index([ownerAddress])
+  @@index([expiresAt])
+}
+
+model VaultClaim {
+  id             String    @id @default(cuid())
+  vaultAddress   String
+  ownerAddress   String
+  claimedAt      DateTime  @default(now())
+  lastVerifiedAt DateTime
+  revokedAt      DateTime?
+  claimMethod    String
+  signatureDigest String
+
+  vault Vault @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
+
+  @@index([vaultAddress])
+  @@index([ownerAddress])
+  @@index([revokedAt])
+}
+
+model OwnerSession {
+  id           String    @id @default(cuid())
+  ownerAddress String
+  tokenHash    String    @unique
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime
+  expiresAt    DateTime
+  revokedAt    DateTime?
+
+  @@index([ownerAddress])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model NotificationDestination {
+  id          String    @id @default(cuid())
+  ownerAddress String
+  kind        String
+  label       String
+  configJson  Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  disabledAt  DateTime?
+
+  subscriptions NotificationSubscription[]
+  deliveries    NotificationDelivery[]
+
+  @@index([ownerAddress])
+  @@index([ownerAddress, disabledAt])
+}
+
+model NotificationSubscription {
+  id           String    @id @default(cuid())
+  vaultAddress String
+  destinationId String
+  ownerAddress String
+  eventKindsJson Json
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  disabledAt   DateTime?
+
+  vault       Vault                   @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
+  destination NotificationDestination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  deliveries  NotificationDelivery[]
+
+  @@index([vaultAddress])
+  @@index([ownerAddress])
+  @@index([destinationId])
+  @@index([vaultAddress, disabledAt])
+}
+
+model NotificationDelivery {
+  id               String    @id @default(cuid())
+  beaconEventId    String
+  subscriptionId   String
+  destinationId    String
+  status           String
+  providerMessageId String?
+  attemptCount     Int       @default(0)
+  lastAttemptAt    DateTime?
+  deliveredAt      DateTime?
+  errorMessage     String?
+  createdAt        DateTime  @default(now())
+
+  beaconEvent  BeaconEvent               @relation(fields: [beaconEventId], references: [id], onDelete: Cascade)
+  subscription NotificationSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  destination  NotificationDestination   @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@index([beaconEventId])
+  @@index([subscriptionId])
+  @@index([destinationId])
+  @@index([status])
+  @@unique([beaconEventId, subscriptionId])
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@brigid/beacon-contracts-abi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./abi/index.ts",
+  "types": "./abi/index.ts",
+  "exports": {
+    ".": "./abi/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
