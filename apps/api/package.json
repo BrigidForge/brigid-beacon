@@ -15,12 +15,16 @@
     "schema": "../../prisma/schema.prisma"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.967.0",
     "@brigid/beacon-shared-types": "*",
     "@brigid/beacon-status-engine": "*",
+    "@fastify/cors": "^8.5.0",
+    "@fastify/helmet": "^11.1.1",
+    "@fastify/rate-limit": "^9.1.0",
     "@prisma/client": "^5.22.0",
-    "prisma": "^5.22.0",
+    "ethers": "^6.13.0",
     "fastify": "^4.28.0",
-    "ethers": "^6.13.0"
+    "prisma": "^5.22.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { DeploymentProof, NormalizedEvent, VaultMetadata, VaultStatus } from '@brigid/beacon-shared-types';
 import { fetchVaultBundle } from '../lib/api';
 import { VaultDetails } from '../components/VaultDetails';
+import { PublicEmailFollowPanel } from '../components/PublicEmailFollowPanel';
 import { OwnerSettings } from '../components/OwnerSettings';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -91,6 +92,7 @@ export default function VaultPage() {
   return (
     <div className="space-y-8">
       <VaultDetails metadata={metadata} status={status} events={events} proof={proof} />
+      <PublicEmailFollowPanel vaultAddress={metadata.address} />
       <OwnerSettings vaultAddress={metadata.address} indexedOwnerAddress={metadata.owner} />
     </div>
   );

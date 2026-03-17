@@ -35,6 +35,7 @@ Public product shape:
 - Beacon has a dedicated public host
 - the API is served under the same host via `/api/...`
 - the older vault/operator panel remains a separate surface
+- same-origin viewer + API is the preferred deployment default; only set `VITE_API_BASE_URL` when the API is intentionally hosted elsewhere
 
 ## Current Local Parity Profile
 
@@ -54,6 +55,8 @@ CONFIRMATIONS=0
 VITE_API_BASE_URL=http://localhost:3000
 ```
 
+Use `./.env.example` as the canonical env list. This file only shows the minimum local parity profile.
+
 ## Important Behavior Fixes Already In Code
 
 These are intentional and should not be “cleaned up” without understanding why they were added.
@@ -62,16 +65,19 @@ These are intentional and should not be “cleaned up” without understanding w
 
 - `apps/worker/src/config.ts`
   - supports `START_BLOCK`
+  - supports `REORG_LOOKBACK_BLOCKS`
 - `apps/worker/src/index.ts`
   - disables Ethers JSON-RPC batching via `batchMaxCount: 1`
 - `apps/worker/src/indexer.ts`
   - uses start-block-aware behavior
+  - rewinds the indexed head by `reorgLookbackBlocks` before replaying to tolerate shallow reorgs
 - `apps/worker/src/factory-discovery.ts`
   - supports reconciliation/discovery with `fromBlock = 0`
 
 ### API
 
 - `apps/api/src/app.ts`
+  - now registers route modules plus centralized CORS, rate limiting, helmet, and stable error handling
   - vault address normalization tolerates lowercase input and lowercases as fallback when checksum parsing would otherwise reject a valid address
 
 ### Viewer
@@ -131,4 +137,5 @@ Prefer these docs when working:
 - Treat BSC testnet as the current canonical environment unless the user explicitly changes it.
 - Treat Beacon as a separate active project, not an Anvil-only demo.
 - Do not reintroduce manual Telegram chat ID setup as the main UX.
+- Global Telegram/Discord/webhook fallback delivery is intentionally opt-in through `ENABLE_GLOBAL_NOTIFICATION_FALLBACK=true`.
 - Be careful with secrets. Do not print or persist live tokens unless the user explicitly requests it and understands the risk.

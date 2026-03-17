@@ -22,15 +22,10 @@ Typical updates only need:
 From local `brigid-beacon/`:
 
 ```bash
-npm run typecheck
-npm run build
-npm test --workspace @brigid/beacon-api
-npm test --workspace @brigid/beacon-worker
-npm test --workspace @brigid/beacon-viewer
-npm test --workspace @brigid/beacon-status-engine
+npm run ci
 ```
 
-If the change only touches one surface, you can run a smaller subset, but the list above is the safest full preflight.
+`npm run ci` is the canonical preflight. It runs workspace typechecks, build steps, and all workspace tests. If the change only touches one surface, you can still run a smaller subset, but `ci` is the safest full preflight.
 
 ## Standard Code Deploy
 
@@ -54,8 +49,7 @@ Change into the deployed repo root, then rebuild what changed.
 For a full app rebuild:
 
 ```bash
-npm run typecheck
-npm run build
+npm run ci
 ```
 
 For viewer-only changes:
@@ -100,6 +94,7 @@ Additional server changes are usually only required if one of these changes:
 - database connection or schema requiring migration steps
 - reverse-proxy routing / hostnames
 - service definitions
+- CORS allowlist or rate-limit policy
 
 Those are runtime changes, not ordinary app-code deploys.
 
@@ -112,6 +107,27 @@ Current reference deployment assumptions:
 - Factory: `0xFc946E68886841B20c33b4449578c4cC35De5165`
 - Start block: `95886539`
 - Validation vault: `0x813bd049593844d8350b055c5b08d713fcfa4d3f`
+
+## Env And Topology Notes
+
+Use `./.env.example` as the canonical env list for API, worker, viewer, and public-email settings.
+
+Preferred production topology:
+
+- serve the viewer and API from the same host when possible
+- reverse proxy API traffic under `/api/...`
+- leave `VITE_API_BASE_URL` unset in that same-origin setup
+- set `PUBLIC_APP_BASE_URL` to the public viewer host used in email links
+
+If the API is hosted separately, explicitly set:
+
+- `VITE_API_BASE_URL=https://your-api-host`
+- `PUBLIC_APP_BASE_URL=https://your-viewer-host`
+- `ALLOWED_ORIGINS=https://your-viewer-host`
+
+## Reorg Handling
+
+Beacon’s worker rewinds from the stored indexed head by `REORG_LOOKBACK_BLOCKS` before replaying the next indexing cycle. That gives the indexer room to replace shallow-reorg data instead of assuming the prior tip is final. Keep the configured lookback aligned with the target chain and your chosen confirmation policy.
 
 ## Telegram Note
 

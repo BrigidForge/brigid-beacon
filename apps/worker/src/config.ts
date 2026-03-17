@@ -22,6 +22,12 @@ function optionalString(name: string): string | undefined {
   return v == null || v === '' ? undefined : v;
 }
 
+function optionalBoolean(name: string, def: boolean): boolean {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (!value) return def;
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
+
 export const config = {
   databaseUrl: requireEnv('DATABASE_URL'),
   rpcUrl: requireEnv('RPC_URL'),
@@ -39,7 +45,13 @@ export const config = {
   telegramChatId: optionalString('TELEGRAM_CHAT_ID'),
   discordWebhookUrl: optionalString('DISCORD_WEBHOOK_URL'),
   webhookUrl: optionalString('WEBHOOK_URL'),
+  globalNotificationFallbackEnabled: optionalBoolean('ENABLE_GLOBAL_NOTIFICATION_FALLBACK', false),
   explorerBaseUrl: optionalString('EXPLORER_BASE_URL') ?? 'https://testnet.bscscan.com',
+  publicAppBaseUrl: optionalString('PUBLIC_APP_BASE_URL') ?? optionalString('VITE_API_BASE_URL') ?? 'http://localhost:5174',
+  awsRegion: optionalString('AWS_REGION') ?? 'us-east-2',
+  sesFromEmail: optionalString('SES_FROM_EMAIL') ?? 'beacon-notifications@brigidforge.com',
+  publicEmailLinkSecret: optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET'),
+  publicEmailSubscriptionRetentionDays: optionalEnv('PUBLIC_EMAIL_SUBSCRIPTION_RETENTION_DAYS', 30),
 } as const;
 
 export type Config = typeof config;

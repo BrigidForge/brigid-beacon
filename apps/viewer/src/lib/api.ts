@@ -205,6 +205,46 @@ export type TokenAnalyticsDetailResponse = TokenAnalyticsSummary & {
   }>;
 };
 
+export type PublicEmailSubscriptionResponse = {
+  status: 'confirmed' | 'pending_confirmation';
+  vaultAddress: string;
+  email: string;
+  eventKinds: string[];
+  expiresAt: string | null;
+  deliveryMode: 'preview' | 'ses' | 'confirmed';
+  message: string;
+  previewConfirmToken: string;
+  previewConfirmUrl: string | null;
+  previewUnsubscribeToken: string;
+  previewUnsubscribeUrl: string | null;
+};
+
+export type PublicEmailConfirmationResponse = {
+  confirmed: boolean;
+  email: string;
+  vaultAddress: string;
+  confirmedAt: string;
+  eventKinds: string[];
+};
+
+export type PublicEmailUnsubscribeResponse = {
+  unsubscribed: boolean;
+  email: string;
+  vaultAddress: string;
+  unsubscribedAt: string;
+};
+
+export type PublicEmailSubscriptionStatusResponse = {
+  vaultAddress: string;
+  email: string;
+  subscribed: boolean;
+  confirmed: boolean;
+  disabled: boolean;
+  eventKinds: string[];
+  confirmedAt?: string | null;
+  disabledAt?: string | null;
+};
+
 export async function fetchVaultBundle(address: string): Promise<{
   metadata: VaultMetadata;
   status: VaultStatus;
@@ -373,4 +413,47 @@ export async function fetchTokenAnalyticsList(): Promise<TokenAnalyticsListRespo
 
 export async function fetchTokenAnalyticsDetail(tokenAddress: string): Promise<TokenAnalyticsDetailResponse> {
   return getJson<TokenAnalyticsDetailResponse>(`/api/v1/analytics/tokens/${tokenAddress}`);
+}
+
+export async function createPublicEmailSubscription(input: {
+  vaultAddress: string;
+  email: string;
+  eventKinds: string[];
+}): Promise<PublicEmailSubscriptionResponse> {
+  return sendJson<PublicEmailSubscriptionResponse>('/api/v1/public/email-subscriptions', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function confirmPublicEmailSubscription(token: string): Promise<PublicEmailConfirmationResponse> {
+  return sendJson<PublicEmailConfirmationResponse>('/api/v1/public/email-subscriptions/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function unsubscribePublicEmailSubscription(token: string): Promise<PublicEmailUnsubscribeResponse> {
+  return sendJson<PublicEmailUnsubscribeResponse>('/api/v1/public/email-subscriptions/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function fetchPublicEmailSubscriptionStatus(
+  vaultAddress: string,
+  email: string,
+): Promise<PublicEmailSubscriptionStatusResponse> {
+  const params = new URLSearchParams({
+    vaultAddress,
+    email,
+  });
+  return getJson<PublicEmailSubscriptionStatusResponse>(`/api/v1/public/email-subscriptions/status?${params.toString()}`);
+}
+
+export async function fetchManagedPublicEmailSubscriptionStatus(
+  token: string,
+): Promise<PublicEmailSubscriptionStatusResponse> {
+  const params = new URLSearchParams({ token });
+  return getJson<PublicEmailSubscriptionStatusResponse>(`/api/v1/public/email-subscriptions/manage?${params.toString()}`);
 }

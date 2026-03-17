@@ -4,6 +4,24 @@
 
 Monitoring, indexing, alerting, and public visibility layer for official BrigidVault contracts.
 
+## Directory And Deployment Map
+
+- Local repo path: `/home/dev/brigid-forge/brigid-beacon`
+- Forgejo remote: `git@git.brigidforge.com:dev/brigid-beacon.git`
+- Primary server clone: `/opt/brigidforge/repo`
+- Auto deploy branches:
+  - `dev` -> `/var/www/staging-beacon`
+  - `main` -> `/var/www/beacon`
+- Forgejo hook path:
+  - `/var/lib/forgejo/data/forgejo-repositories/dev/brigid-beacon.git/hooks/post-receive.d/brigid-deploy`
+- Server deploy script:
+  - `/root/update-brigid.sh`
+
+Beacon now deploys only the Beacon worker payload to those web roots. It no longer deploys Vault UI or Panel content.
+
+Related website preview note:
+- The public marketing site preview now publishes from the separate `brigid-site` repo to `/var/www/staging-site` on `dev`.
+
 ## Structure
 
 - **apps/api** – Beacon API (Fastify); vault metadata, status, events, proof
@@ -54,6 +72,8 @@ CONFIRMATIONS=0
 VITE_API_BASE_URL=http://localhost:3000
 ```
 
+Use [`./.env.example`](./.env.example) as the canonical env reference. For local split-host development, keep `VITE_API_BASE_URL` pointed at the API. For same-origin production deploys, prefer leaving it unset so the viewer uses relative `/api/...` paths and avoids CORS drift.
+
 ## Run
 
 - **API:** `npm run dev -w @brigid/beacon-api` (port 3000)
@@ -82,6 +102,23 @@ TELEGRAM_WEBHOOK_SECRET=choose-another-long-random-secret
 VITE_API_BASE_URL=https://your-api-host
 ```
 
+For a same-origin Beacon deployment behind one reverse proxy, prefer:
+
+```bash
+# viewer served from https://beacon.example.com
+# API proxied on the same host under /api
+ALLOWED_ORIGINS=
+PUBLIC_APP_BASE_URL=https://beacon.example.com
+```
+
+For a split-host deployment, explicitly configure both:
+
+```bash
+VITE_API_BASE_URL=https://api.example.com
+PUBLIC_APP_BASE_URL=https://beacon.example.com
+ALLOWED_ORIGINS=https://beacon.example.com
+```
+
 If you use the managed Telegram connect flow, Beacon owns the bot token and users no longer need to enter a Telegram chat ID or bot token in the UI.
 
 ### Telegram webhook
@@ -104,6 +141,11 @@ curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
 ```
 
 See [docs/LOCAL_DEMO.md](./docs/LOCAL_DEMO.md) for the canonical runbook.
+
+## Operational Notes
+
+- Beacon’s worker defends against shallow reorgs by rewinding the indexed head by `REORG_LOOKBACK_BLOCKS` before each replay pass. Keep that window aligned with the finality assumptions you are comfortable with for the target chain.
+- Global Telegram/Discord/webhook fallback delivery is now opt-in through `ENABLE_GLOBAL_NOTIFICATION_FALLBACK=true`. By default, events with no matching subscriptions are marked dispatched and logged instead of retrying forever.
 
 ## Primary Validation Flow
 

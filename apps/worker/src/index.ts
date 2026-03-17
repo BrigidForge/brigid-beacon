@@ -13,6 +13,7 @@ import { config } from './config.js';
 import { logger } from './logger.js';
 import { runIndexerCycle } from './indexer.js';
 import { runDispatcherCycle } from './dispatcher.js';
+import { runCleanupCycle } from './cleanup.js';
 import { markDispatcherRun, markIndexerError, markIndexerSuccess } from './ops-state.js';
 
 async function main() {
@@ -50,6 +51,21 @@ async function main() {
       }
     } catch (err) {
       logger.error('Dispatcher cycle error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    try {
+      const cleanup = await runCleanupCycle();
+      if (
+        cleanup.deletedPublicEmailTokens > 0 ||
+        cleanup.deletedPublicEmailSubscriptions > 0 ||
+        cleanup.deletedPublicEmailFollowers > 0
+      ) {
+        logger.info('Cleanup cycle', cleanup);
+      }
+    } catch (err) {
+      logger.error('Cleanup cycle error', {
         error: err instanceof Error ? err.message : String(err),
       });
     }

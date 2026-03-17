@@ -15,12 +15,13 @@
     "schema": "../../prisma/schema.prisma"
   },
   "dependencies": {
-    "@brigid/beacon-shared-types": "*",
+    "@aws-sdk/client-sesv2": "^3.967.0",
     "@brigid/beacon-contracts-abi": "*",
+    "@brigid/beacon-shared-types": "*",
     "@brigid/beacon-status-engine": "*",
     "@prisma/client": "^5.22.0",
-    "prisma": "^5.22.0",
-    "ethers": "^6.13.0"
+    "ethers": "^6.13.0",
+    "prisma": "^5.22.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
