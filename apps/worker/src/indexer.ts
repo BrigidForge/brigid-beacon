@@ -48,6 +48,14 @@ const VAULT_TOPICS = [
 ].filter(Boolean) as string[];
 const ERC20_TRANSFER_TOPIC = erc20Interface.getEvent('Transfer')!.topicHash;
 
+let factoryRegistryCache:
+  | {
+      factoryAddress: string;
+      vaults: string[] | null;
+      fetchedAtMs: number;
+    }
+  | null = null;
+
 function toContractLog(log: Log): ContractLog {
   return {
     blockNumber: log.blockNumber,
@@ -349,9 +357,17 @@ async function cleanupIndexedRange(fromBlock: number): Promise<void> {
   });
 }
 
-export async function runIndexerCycle(provider: JsonRpcProvider): Promise<{
+export async function runIndexerCycle(
+  provider: JsonRpcProvider,
+  options?: {
+    blockChunkSize?: number;
+    factoryRegistryRefreshMs?: number;
+  },
+): Promise<{
   processed: number;
   toBlock: number;
+  currentBlock: number;
+  lagBlocks: number;
   discoveryMode: 'registry' | 'event_only';
 }> {
   const currentState = await getIndexerState();
@@ -362,7 +378,7 @@ export async function runIndexerCycle(provider: JsonRpcProvider): Promise<{
     const currentLastBlockHash = currentLastBlock?.hash ?? null;
     await setLastBlock(lastBlock, currentLastBlockHash);
     if (currentBlock <= lastBlock) {
-      return { processed: 0, toBlock: lastBlock, discoveryMode: 'registry' };
+      return { processed: 0, toBlock: lastBlock, currentBlock, lagBlocks: 0, discoveryMode: 'registry' };
     }
   }
   if (lastBlock > 0 && currentState.lastBlockHash) {
@@ -377,13 +393,16 @@ export async function runIndexerCycle(provider: JsonRpcProvider): Promise<{
     }
   }
 
-  const toBlock = Math.max(lastBlock, Math.min(currentBlock - config.confirmations, lastBlock + config.blockChunkSize));
+  const blockChunkSize = options?.blockChunkSize ?? config.blockChunkSize;
+  const registryRefreshMs = options?.factoryRegistryRefreshMs ?? config.factoryRegistryRefreshMs;
+  const toBlockWithOverride = Math.max(lastBlock, Math.min(currentBlock - config.confirmations, lastBlock + blockChunkSize));
 
-  if (lastBlock >= toBlock) {
-    return { processed: 0, toBlock: lastBlock, discoveryMode: 'registry' };
+  if (lastBlock >= toBlockWithOverride) {
+    return { processed: 0, toBlock: lastBlock, currentBlock, lagBlocks: Math.max(0, currentBlock - lastBlock), discoveryMode: 'registry' };
   }
 
   const fromBlock = lastBlock + 1;
+  const toBlock = toBlockWithOverride;
   const blockTimestamps = new Map<number, string>();
 
   async function blockTimestamp(blockNumber: number): Promise<string> {
@@ -397,7 +416,20 @@ export async function runIndexerCycle(provider: JsonRpcProvider): Promise<{
 
   // 1) Factory logs plus registry reconciliation for any missed deploys.
   const factoryContract = new Contract(config.factoryAddress, BrigidVaultFactoryAbi, provider);
-  const registryVaults = await readFactoryRegistryVaults(factoryContract as unknown as FactoryRegistryContract);
+  const shouldRefreshRegistry =
+    factoryRegistryCache == null ||
+    factoryRegistryCache.factoryAddress.toLowerCase() !== config.factoryAddress.toLowerCase() ||
+    Date.now() - factoryRegistryCache.fetchedAtMs >= registryRefreshMs;
+  const registryVaults = shouldRefreshRegistry
+    ? await readFactoryRegistryVaults(factoryContract as unknown as FactoryRegistryContract)
+    : (factoryRegistryCache?.vaults ?? null);
+  if (shouldRefreshRegistry) {
+    factoryRegistryCache = {
+      factoryAddress: config.factoryAddress,
+      vaults: registryVaults,
+      fetchedAtMs: Date.now(),
+    };
+  }
   const discoveryMode = registryVaults == null ? 'event_only' : 'registry';
   if (registryVaults == null) {
     logger.warn('Factory registry unavailable, falling back to event-only discovery', {
@@ -731,5 +763,11 @@ export async function runIndexerCycle(provider: JsonRpcProvider): Promise<{
 
   const finalizedBlock = await provider.getBlock(toBlock);
   await setLastBlock(toBlock, finalizedBlock?.hash ?? null, discoveryMode);
-  return { processed, toBlock, discoveryMode };
+  return {
+    processed,
+    toBlock,
+    currentBlock,
+    lagBlocks: Math.max(0, currentBlock - toBlock),
+    discoveryMode,
+  };
 }

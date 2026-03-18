@@ -1,0 +1,236 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { fetchOperatorOwnedVaults, type OperatorOwnedVaultsResponse } from '../lib/api';
+import {
+  connectWallet,
+  disconnectWallet,
+  getActiveWalletSession,
+  walletConnectEnabled,
+  type WalletConnectionKind,
+  type WalletSession,
+} from '../lib/operatorVault';
+
+const WALLET_SESSION_STORAGE_KEY = 'brigid-operator-wallet-session';
+
+const NO_VAULTS_MESSAGE =
+  'No vaults found for this wallet address. Connect using the wallet that was used to create the vault (or that holds vault ownership).\n\n' +
+  'Before trying again, clear this site\'s access in your wallet: open your wallet → Connected sites or Permissions → find this site → Disconnect.';
+
+type OperatorSessionContextValue = {
+  walletSession: WalletSession | null;
+  walletBusy: boolean;
+  walletError: string | null;
+  walletMessage: string | null;
+  walletConnectUri: string | null;
+  walletConnectStatus: string | null;
+  ownedVaults: OperatorOwnedVaultsResponse | null;
+  ownedVaultsLoading: boolean;
+  ensureWallet: (kind?: WalletConnectionKind) => Promise<WalletSession>;
+  handleDisconnect: () => Promise<void>;
+  clearWalletFeedback: () => void;
+  walletConnectAvailable: boolean;
+};
+
+const OperatorSessionContext = createContext<OperatorSessionContextValue | null>(null);
+
+function storeWalletSession(kind: WalletConnectionKind) {
+  try {
+    window.localStorage.setItem(WALLET_SESSION_STORAGE_KEY, kind);
+  } catch {
+    // Ignore local storage failures.
+  }
+}
+
+function readStoredWalletSession(): WalletConnectionKind | null {
+  try {
+    const raw = window.localStorage.getItem(WALLET_SESSION_STORAGE_KEY);
+    if (raw === 'injected' || raw === 'walletconnect') {
+      return raw;
+    }
+  } catch {
+    // Ignore local storage failures.
+  }
+  return null;
+}
+
+function clearStoredWalletSession() {
+  try {
+    window.localStorage.removeItem(WALLET_SESSION_STORAGE_KEY);
+  } catch {
+    // Ignore local storage failures.
+  }
+}
+
+export function OperatorSessionProvider(props: { children: ReactNode }) {
+  const [walletSession, setWalletSession] = useState<WalletSession | null>(null);
+  const [walletBusy, setWalletBusy] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [walletMessage, setWalletMessage] = useState<string | null>(null);
+  const [walletConnectUri, setWalletConnectUri] = useState<string | null>(null);
+  const [walletConnectStatus, setWalletConnectStatus] = useState<string | null>(null);
+  const [ownedVaults, setOwnedVaults] = useState<OperatorOwnedVaultsResponse | null>(null);
+  const [ownedVaultsLoading, setOwnedVaultsLoading] = useState(false);
+
+  async function loadOwnedVaults(ownerAddress: string) {
+    setOwnedVaultsLoading(true);
+    try {
+      const nextVaults = await fetchOperatorOwnedVaults(ownerAddress);
+      setOwnedVaults(nextVaults);
+      setWalletError(null);
+      // Do not set wallet message on successful connect; avoid transient popups.
+      return nextVaults;
+    } catch (err) {
+      setOwnedVaults(null);
+      const nextError = err instanceof Error ? err.message : String(err);
+      setWalletError(nextError);
+      throw err;
+    } finally {
+      setOwnedVaultsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const existingSession = getActiveWalletSession();
+    if (existingSession) {
+      void loadOwnedVaults(existingSession.address).then((vaults) => {
+        if (vaults.vaults.length > 0) {
+          setWalletSession(existingSession);
+        } else {
+          void disconnectWallet(existingSession.kind);
+          clearStoredWalletSession();
+          setOwnedVaults(null);
+          setWalletError(NO_VAULTS_MESSAGE);
+        }
+      }).catch(() => undefined);
+      return;
+    }
+
+    const storedKind = readStoredWalletSession();
+    if (!storedKind) return;
+
+    void connectWallet(storedKind, { silent: true })
+      .then((session) => loadOwnedVaults(session.address).then((vaults) => ({ session, vaults })))
+      .then(({ session, vaults }) => {
+        if (vaults.vaults.length > 0) {
+          setWalletSession(session);
+        } else {
+          void disconnectWallet(session.kind);
+          clearStoredWalletSession();
+          setOwnedVaults(null);
+          setWalletError(NO_VAULTS_MESSAGE);
+        }
+      })
+      .catch(() => {
+        clearStoredWalletSession();
+        setOwnedVaults(null);
+      });
+  }, []);
+
+  async function ensureWallet(kind: WalletConnectionKind = walletSession?.kind ?? 'injected') {
+    if (walletSession && walletSession.kind === kind) {
+      return walletSession;
+    }
+
+    setWalletBusy(true);
+    try {
+      if (kind === 'walletconnect') {
+        setWalletConnectStatus('Preparing WalletConnect pairing...');
+        setWalletConnectUri(null);
+      }
+
+      const session =
+        kind === 'walletconnect'
+          ? await connectWallet(kind, {
+              onDisplayUri: (uri) => {
+                setWalletConnectUri(uri);
+                setWalletConnectStatus('Pairing URI ready.');
+                setWalletMessage('Approve the WalletConnect pairing in your iPhone wallet, or copy the URI below.');
+              },
+            })
+          : await connectWallet(kind);
+
+      setWalletConnectUri(null);
+      setWalletConnectStatus(null);
+      setWalletError(null);
+      const vaults = await loadOwnedVaults(session.address);
+      if (vaults.vaults.length === 0) {
+        await disconnectWallet(session.kind);
+        clearStoredWalletSession();
+        setOwnedVaults(null);
+        throw new Error(NO_VAULTS_MESSAGE);
+      }
+      setWalletSession(session);
+      storeWalletSession(session.kind);
+      return session;
+    } catch (err) {
+      const nextError = err instanceof Error ? err.message : String(err);
+      setWalletError(
+        kind === 'walletconnect'
+          ? `${nextError} If the WalletConnect module could not be loaded, verify VITE_WALLETCONNECT_CDN_URL is reachable from this browser.`
+          : nextError,
+      );
+      throw err;
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    await disconnectWallet(walletSession?.kind ?? null);
+    clearStoredWalletSession();
+    setWalletSession(null);
+    setOwnedVaults(null);
+    setWalletConnectUri(null);
+    setWalletConnectStatus(null);
+    setWalletError(null);
+    setWalletMessage(null);
+  }
+
+  function clearWalletFeedback() {
+    setWalletError(null);
+    setWalletMessage(null);
+  }
+
+  const value = useMemo<OperatorSessionContextValue>(
+    () => ({
+      walletSession,
+      walletBusy,
+      walletError,
+      walletMessage,
+      walletConnectUri,
+      walletConnectStatus,
+      ownedVaults,
+      ownedVaultsLoading,
+      ensureWallet,
+      handleDisconnect,
+      clearWalletFeedback,
+      walletConnectAvailable: walletConnectEnabled(),
+    }),
+    [
+      ownedVaults,
+      ownedVaultsLoading,
+      walletBusy,
+      walletConnectStatus,
+      walletConnectUri,
+      walletError,
+      walletMessage,
+      walletSession,
+    ],
+  );
+
+  return <OperatorSessionContext.Provider value={value}>{props.children}</OperatorSessionContext.Provider>;
+}
+
+export function useOperatorSession() {
+  const value = useContext(OperatorSessionContext);
+  if (!value) {
+    throw new Error('useOperatorSession must be used within OperatorSessionProvider.');
+  }
+  return value;
+}

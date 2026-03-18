@@ -25,7 +25,9 @@ Related website preview note:
 ## Structure
 
 - **apps/api** – Beacon API (Fastify); vault metadata, status, events, proof
-- **apps/viewer** – Public viewer (Vite + React + Tailwind); `/vault/:address`
+- **apps/public-panel** – Public visitor panel (Vite + React + Tailwind); curated vault visibility and `/vault/:address`
+- **apps/operator-panel** – Operator panel (Vite + React + Tailwind); wallet-based vault transactions plus Beacon notification setup
+- **apps/viewer** – Legacy Beacon viewer kept for compatibility while the new split surfaces settle
 - **apps/worker** – Indexer and notification jobs (Sprint 2 & 5)
 - **packages/shared-types** – Event taxonomy, status state, API contracts
 - **packages/contracts-abi** – BrigidVault & Factory ABI for indexer
@@ -70,7 +72,15 @@ POLL_INTERVAL_MS=60000
 BLOCK_CHUNK_SIZE=5000
 CONFIRMATIONS=0
 VITE_API_BASE_URL=http://localhost:3000
+VITE_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
+VITE_WALLETCONNECT_CDN_URL=https://esm.sh/@walletconnect/ethereum-provider@2.23.8
 ```
+
+Operator mobile wallet note:
+
+- Set `VITE_WALLETCONNECT_PROJECT_ID` to enable the `iPhone / WalletConnect` path in `apps/operator-panel`
+- The WalletConnect provider is loaded on demand from `VITE_WALLETCONNECT_CDN_URL`, so it does not inflate the default operator bundle
+- This keeps desktop injected wallets working while allowing QR or deep-link pairing for mobile users
 
 Use [`./.env.example`](./.env.example) as the canonical env reference. For local split-host development, keep `VITE_API_BASE_URL` pointed at the API. For same-origin production deploys, prefer leaving it unset so the viewer uses relative `/api/...` paths and avoids CORS drift.
 
@@ -78,7 +88,9 @@ Use [`./.env.example`](./.env.example) as the canonical env reference. For local
 
 - **API:** `npm run dev -w @brigid/beacon-api` (port 3000)
 - **Worker:** `npm run dev -w @brigid/beacon-worker`
-- **Viewer:** `npm run dev -w @brigid/beacon-viewer` (port 5174)
+- **Public panel:** `npm run dev -w @brigid/beacon-public-panel` (port 5174)
+- **Operator panel:** `npm run dev -w @brigid/beacon-operator-panel` (port 5175)
+- **Legacy viewer:** `npm run dev -w @brigid/beacon-viewer`
 - **Managed bring-up:** `npm run dev:up`
 - **Managed shutdown:** `npm run dev:down`
 - **Managed status:** `npm run dev:status`
