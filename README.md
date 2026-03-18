@@ -17,7 +17,13 @@ Monitoring, indexing, alerting, and public visibility layer for official BrigidV
 - Server deploy script:
   - `/root/update-brigid.sh`
 
-Beacon now deploys only the Beacon worker payload to those web roots. It no longer deploys Vault UI or Panel content.
+Canonical hosted web roots:
+- Operator panel -> `/var/www/beacon`
+- Public panel -> `/var/www/panel`
+
+Canonical hosted runtime units:
+- `/etc/systemd/system/beacon-api.service`
+- `/etc/systemd/system/beacon-worker.service`
 
 Related website preview note:
 - The public marketing site preview now publishes from the separate `brigid-site` repo to `/var/www/staging-site` on `dev`.
@@ -47,6 +53,13 @@ Beacon is now validated against a live **BSC testnet** deployment.
 
 The detailed runbook lives in [docs/LOCAL_DEMO.md](./docs/LOCAL_DEMO.md), and the AI handoff/context file lives in [docs/AI_HANDOFF.md](./docs/AI_HANDOFF.md).
 The deployment playbook lives in [docs/DEPLOY.md](./docs/DEPLOY.md).
+
+Hosted deployment automation now lives in-repo:
+
+- [scripts/deploy-hosted.sh](./scripts/deploy-hosted.sh) publishes operator and public panels to the canonical web roots
+- [scripts/install-systemd.sh](./scripts/install-systemd.sh) installs the canonical systemd units from [ops/systemd](./ops/systemd)
+
+On the server, `/root/update-brigid.sh` should simply call the repo script instead of maintaining its own divergent logic.
 
 ## Setup
 

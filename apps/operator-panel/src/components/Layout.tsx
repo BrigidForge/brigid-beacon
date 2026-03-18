@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { shortenAddress } from '../lib/format';
 import { NETWORK_NAMES } from '../lib/operatorVault';
 import { useOperatorSession } from './OperatorSessionProvider';
+import brigidLogoWhite from '../../media/brigid-logo-white.png';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
@@ -34,7 +35,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-5">
               <Link to="/" className="flex items-center gap-3">
                 <img
-                  src="/media/logo-brigid-forge.png"
+                  src={brigidLogoWhite}
                   alt="Brigid Forge"
                   style={{ height: 120 }}
                   className="w-auto"

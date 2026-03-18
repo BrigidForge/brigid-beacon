@@ -1,0 +1,15 @@
+[Unit]
+Description=BrigidVault Beacon Worker
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/brigidforge/repo/apps/worker
+EnvironmentFile=/opt/brigidforge/repo/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --import tsx src/index.ts
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

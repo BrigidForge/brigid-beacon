@@ -13,6 +13,35 @@ const API_BASE =
     ? import.meta.env.VITE_API_BASE_URL
     : '') ?? '';
 
+function resolveRequestUrl(path: string): string {
+  if (API_BASE) {
+    const trimmedBase = API_BASE.replace(/\/+$/, '');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const dedupedPath =
+      trimmedBase.endsWith('/api') && normalizedPath.startsWith('/api/')
+        ? normalizedPath.slice('/api'.length)
+        : normalizedPath;
+    return `${trimmedBase}${dedupedPath}`;
+  }
+
+  if (typeof window !== 'undefined' && window.location.hostname === 'www.beacon.brigidforge.com') {
+    return `https://beacon.brigidforge.com${path}`;
+  }
+
+  return path;
+}
+
+function describeNetworkFailure(url: string, error: unknown): Error {
+  const detail = error instanceof Error ? error.message : String(error);
+  if (typeof window !== 'undefined' && window.location.hostname === 'www.beacon.brigidforge.com') {
+    return new Error(
+      `The operator API could not be reached from www.beacon.brigidforge.com. Use https://beacon.brigidforge.com instead, or update the deployment so /api is available on the current host.\n\nRequest: ${url}\nDetail: ${detail}`,
+    );
+  }
+
+  return new Error(`Network request failed for ${url}.\n\nDetail: ${detail}`);
+}
+
 async function readJsonOrThrow<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -22,7 +51,13 @@ async function readJsonOrThrow<T>(response: Response): Promise<T> {
 }
 
 async function getJson<T>(path: string, headers?: HeadersInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { headers });
+  const url = resolveRequestUrl(path);
+  let response: Response;
+  try {
+    response = await fetch(url, { headers });
+  } catch (error) {
+    throw describeNetworkFailure(url, error);
+  }
   return readJsonOrThrow<T>(response);
 }
 
@@ -35,10 +70,16 @@ async function sendJson<T>(path: string, init: RequestInit): Promise<T> {
           ...(init.headers ?? {}),
         };
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers,
-  });
+  const url = resolveRequestUrl(path);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers,
+    });
+  } catch (error) {
+    throw describeNetworkFailure(url, error);
+  }
   return readJsonOrThrow<T>(response);
 }
 
