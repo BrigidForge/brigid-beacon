@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-/opt/brigidforge/repo}"
 BEACON_ROOT="${BEACON_ROOT:-/var/www/beacon}"
 PANEL_ROOT="${PANEL_ROOT:-/var/www/panel}"
-API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:3000/health}"
+API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:3001/health}"
 PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://beacon.brigidforge.com/}"
 INSTALL_DEPS="${INSTALL_DEPS:-0}"
 RESTART_SERVICES="${RESTART_SERVICES:-1}"
