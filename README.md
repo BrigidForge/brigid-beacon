@@ -17,7 +17,13 @@ Monitoring, indexing, alerting, and public visibility layer for official BrigidV
 - Server deploy script:
   - `/root/update-brigid.sh`
 
-Beacon now deploys only the Beacon worker payload to those web roots. It no longer deploys Vault UI or Panel content.
+Canonical hosted web roots:
+- Operator panel -> `/var/www/beacon`
+- Public panel -> `/var/www/panel`
+
+Canonical hosted runtime units:
+- `/etc/systemd/system/beacon-api.service`
+- `/etc/systemd/system/beacon-worker.service`
 
 Related website preview note:
 - The public marketing site preview now publishes from the separate `brigid-site` repo to `/var/www/staging-site` on `dev`.
@@ -25,7 +31,9 @@ Related website preview note:
 ## Structure
 
 - **apps/api** – Beacon API (Fastify); vault metadata, status, events, proof
-- **apps/viewer** – Public viewer (Vite + React + Tailwind); `/vault/:address`
+- **apps/public-panel** – Public visitor panel (Vite + React + Tailwind); curated vault visibility and `/vault/:address`
+- **apps/operator-panel** – Operator panel (Vite + React + Tailwind); wallet-based vault transactions plus Beacon notification setup
+- **apps/viewer** – Legacy Beacon viewer kept for compatibility while the new split surfaces settle
 - **apps/worker** – Indexer and notification jobs (Sprint 2 & 5)
 - **packages/shared-types** – Event taxonomy, status state, API contracts
 - **packages/contracts-abi** – BrigidVault & Factory ABI for indexer
@@ -45,6 +53,13 @@ Beacon is now validated against a live **BSC testnet** deployment.
 
 The detailed runbook lives in [docs/LOCAL_DEMO.md](./docs/LOCAL_DEMO.md), and the AI handoff/context file lives in [docs/AI_HANDOFF.md](./docs/AI_HANDOFF.md).
 The deployment playbook lives in [docs/DEPLOY.md](./docs/DEPLOY.md).
+
+Hosted deployment automation now lives in-repo:
+
+- [scripts/deploy-hosted.sh](./scripts/deploy-hosted.sh) publishes operator and public panels to the canonical web roots
+- [scripts/install-systemd.sh](./scripts/install-systemd.sh) installs the canonical systemd units from [ops/systemd](./ops/systemd)
+
+On the server, `/root/update-brigid.sh` should simply call the repo script instead of maintaining its own divergent logic.
 
 ## Setup
 
@@ -70,7 +85,15 @@ POLL_INTERVAL_MS=60000
 BLOCK_CHUNK_SIZE=5000
 CONFIRMATIONS=0
 VITE_API_BASE_URL=http://localhost:3000
+VITE_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
+VITE_WALLETCONNECT_CDN_URL=https://esm.sh/@walletconnect/ethereum-provider@2.23.8
 ```
+
+Operator mobile wallet note:
+
+- Set `VITE_WALLETCONNECT_PROJECT_ID` to enable the `iPhone / WalletConnect` path in `apps/operator-panel`
+- The WalletConnect provider is loaded on demand from `VITE_WALLETCONNECT_CDN_URL`, so it does not inflate the default operator bundle
+- This keeps desktop injected wallets working while allowing QR or deep-link pairing for mobile users
 
 Use [`./.env.example`](./.env.example) as the canonical env reference. For local split-host development, keep `VITE_API_BASE_URL` pointed at the API. For same-origin production deploys, prefer leaving it unset so the viewer uses relative `/api/...` paths and avoids CORS drift.
 
@@ -78,7 +101,9 @@ Use [`./.env.example`](./.env.example) as the canonical env reference. For local
 
 - **API:** `npm run dev -w @brigid/beacon-api` (port 3000)
 - **Worker:** `npm run dev -w @brigid/beacon-worker`
-- **Viewer:** `npm run dev -w @brigid/beacon-viewer` (port 5174)
+- **Public panel:** `npm run dev -w @brigid/beacon-public-panel` (port 5174)
+- **Operator panel:** `npm run dev -w @brigid/beacon-operator-panel` (port 5175)
+- **Legacy viewer:** `npm run dev -w @brigid/beacon-viewer`
 - **Managed bring-up:** `npm run dev:up`
 - **Managed shutdown:** `npm run dev:down`
 - **Managed status:** `npm run dev:status`

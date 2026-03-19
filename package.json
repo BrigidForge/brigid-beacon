@@ -12,6 +12,8 @@
     "test": "npm test --workspaces --if-present",
     "test:all": "npm run typecheck && npm run build && npm test --workspaces --if-present",
     "ci": "npm run test:all",
+    "deploy:hosted": "bash scripts/deploy-hosted.sh",
+    "server:install-systemd": "bash scripts/install-systemd.sh",
     "test:e2e": "LD_LIBRARY_PATH=$PWD/.local/lib/extract/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH ./node_modules/.bin/playwright test e2e/owner-flow.spec.ts",
     "dev:up": "node scripts/dev-runtime.mjs up",
     "dev:down": "node scripts/dev-runtime.mjs down",

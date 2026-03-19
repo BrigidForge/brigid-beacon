@@ -10,7 +10,9 @@ Read this first before making assumptions about architecture, chain configuratio
 
 - `apps/api` – Fastify API
 - `apps/worker` – indexer + notification dispatcher
-- `apps/viewer` – public React viewer
+- `apps/public-panel` – public React visitor panel
+- `apps/operator-panel` – operator React control panel
+- `apps/viewer` – legacy Beacon viewer still present for compatibility
 - `prisma/` – database schema
 
 Beacon tracks official vaults deployed through the Brigid factory and provides:
@@ -80,10 +82,17 @@ These are intentional and should not be “cleaned up” without understanding w
   - now registers route modules plus centralized CORS, rate limiting, helmet, and stable error handling
   - vault address normalization tolerates lowercase input and lowercases as fallback when checksum parsing would otherwise reject a valid address
 
-### Viewer
+### Public Panel
 
-- `apps/viewer/src/pages/VaultPage.tsx`
+- `apps/public-panel/src/pages/VaultPage.tsx`
   - vault page performs a quiet background refresh every 60 seconds
+
+### Operator Panel
+
+- `apps/operator-panel/src/pages/VaultPage.tsx`
+  - vault page keeps Beacon visibility at the top, then splits operator actions into `Transactions` and `Beacon Notifications` tabs
+- `apps/operator-panel/src/components/TransactionsTab.tsx`
+  - preserves the owner request / cancel / execute withdrawal flow using direct vault contract interactions
 
 ## Telegram
 
