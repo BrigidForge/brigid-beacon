@@ -12,13 +12,13 @@ const SERVICES = [
   {
     name: 'api',
     cwd: path.join(ROOT, 'apps/api'),
-    command: ['npm', 'run', 'dev'],
+    command: ['npm', 'run', 'start'],
     port: 3000,
   },
   {
     name: 'worker',
     cwd: path.join(ROOT, 'apps/worker'),
-    command: ['npm', 'run', 'dev'],
+    command: ['npm', 'run', 'start'],
     port: null,
   },
   {

@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BrigidVault Public Viewer</title>
+  <style>
+  :root{
+    --bg:#f8f7f4;
+    --card:#ffffff;
+    --muted:#6b7280;
+    --text:#1f2937;
+    --border:#e5e7eb;
+    --soft:#fbfaf7;
+    --btn:#1f2937;
+    --btnHover:#111827;
+    --warn:#b45309;
+    --good:#047857;
+    --bad:#b91c1c;
+    --info:#c6a756;
+    --tl-request:#2563eb;
+    --tl-cancel:#dc2626;
+    --tl-delay:#eab308;
+    --tl-exec:#22c55e;
+    --tl-done:#7c3aed;
+    --tl-idle:#eef1f4;
+  }
+  *{box-sizing:border-box}
+  body{
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
+    background:var(--bg);
+    margin:0;
+    padding:24px;
+    color:var(--text);
+  }
+  .wrap{max-width:1280px;margin:0 auto;display:grid;gap:14px}
+  .header{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+  h1{margin:0;font-size:24px}
+  .subtitle{font-size:13px;color:var(--muted);line-height:1.45}
+  .card{background:var(--card);border:1px solid rgba(198,167,86,.25);border-radius:12px;padding:16px;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  @media(max-width:980px){.grid3,.grid2{grid-template-columns:1fr} body{padding:14px}}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border)}
+  .row:last-child{border-bottom:none}
+  .label{color:var(--muted);font-size:12px}
+  .value{font-size:14px;text-align:right;word-break:break-all}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  .actions{display:flex;gap:10px;flex-wrap:wrap}
+  button{border:none;border-radius:10px;padding:10px 14px;background:linear-gradient(135deg,#c6a756,#8f6f2e);color:#fff;cursor:pointer;font-size:14px}
+  button:hover{background:linear-gradient(135deg,#e5c878,#a07a33)}
+  button:disabled{background:#9ca3af;cursor:not-allowed}
+  .copyBtn{padding:4px 8px;font-size:11px;border-radius:999px}
+  .miniBtn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:4px 8px;
+    font-size:11px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--soft);
+    color:var(--text);
+    text-decoration:none;
+    line-height:1;
+  }
+  button.miniBtn{background:var(--soft);color:var(--text);border:1px solid var(--border)}
+  button.miniBtn:hover{background:#fff}
+  a.miniBtn:hover{background:#fff}
+  .sectionTitle{margin:0 0 12px 0;font-size:15px}
+  .tiny{font-size:12px;color:var(--muted);line-height:1.45}
+  .bar{width:100%;height:14px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px}
+  .bar>div{width:0%;height:100%;background:var(--btn);transition:width .6s cubic-bezier(.22,.9,.33,1)}
+
+  .notice{margin-top:10px;padding:10px 12px;border-radius:10px;font-size:12px;background:var(--soft);border:1px solid var(--border)}
+  .notice.good{color:var(--good);border-color:rgba(4,120,87,.25);background:rgba(4,120,87,.06)}
+  .notice.warn{color:var(--warn);border-color:rgba(180,83,9,.25);background:rgba(180,83,9,.06)}
+  .notice.bad{color:var(--bad);border-color:rgba(185,28,28,.25);background:rgba(185,28,28,.06)}
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--soft);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.02em;
+    line-height:1;
+  }
+  .badge-ok{background:rgba(4,120,87,.08);border-color:rgba(4,120,87,.22);color:var(--good)}
+  .badge-warn{background:rgba(180,83,9,.10);border-color:rgba(180,83,9,.25);color:var(--warn)}
+  .badge-bad{background:rgba(185,28,28,.08);border-color:rgba(185,28,28,.22);color:var(--bad)}
+
+  .value.status{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--soft);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.02em;
+    line-height:1;
+    white-space:nowrap;
+  }
+  .value.status.ready{color:var(--good);background:rgba(4,120,87,.08);border-color:rgba(4,120,87,.22)}
+  .value.status.warn,.value.status.cancel,.value.status.delay{color:var(--warn);background:rgba(180,83,9,.10);border-color:rgba(180,83,9,.25)}
+  .value.status.exec{color:var(--good);background:rgba(4,120,87,.08);border-color:rgba(4,120,87,.22)}
+  .value.status.bad,.value.status.expired{color:var(--bad);background:rgba(185,28,28,.08);border-color:rgba(185,28,28,.22)}
+
+  .header h1{color:#c6a756;letter-spacing:.04em}
+
+  @keyframes livePulse{
+    0%,100%{opacity:1}
+    50%{opacity:0.5}
+  }
+  #syncDot{
+    display:inline-block;
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:#22c55e;
+    margin-left:6px;
+    animation:livePulse 2s infinite;
+    vertical-align:middle;
+  }
+  </style>
+</head>
+<body>
+  <div id="app" class="wrap">
+    <div class="header" style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;">
+      <div style="justify-self:start;">
+        <h1>BrigidVault Public Viewer</h1>
+        <div class="subtitle">Read-only vault monitoring.</div>
+        <div class="subtitle mono" style="margin-top:6px;">
+          <span style="font-size:22px;font-weight:700;">Vault:</span>
+          <span id="vaultAddrHeader" style="font-size:22px;font-weight:700;margin-left:6px;">—</span>
+          <button class="copyBtn miniBtn" id="copyVaultHeaderBtn">copy</button>
+          <a class="miniBtn" id="vaultExplorerLink" target="_blank" rel="noreferrer" style="margin-left:6px;">view</a>
+          <div class="tiny mono" style="margin-top:6px;font-size:13px;">
+            Network: <span id="networkHeader">—</span> · Block: <span id="blockHeader">—</span>
+            <div class="tiny mono" style="margin-top:4px;font-size:13px;">
+              Last Sync: <span id="lastSyncTime">—</span><span id="syncDot"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;justify-self:center;">
+        <img src="logo-transparent.png" alt="Brigid Forge" style="max-width:240px;width:100%;opacity:.95;display:block;margin:auto;">
+        <div style="font-size:13px;color:#c6a756;margin-top:-4px;letter-spacing:.08em;">
+          Brigid Forge • Transparency Before Execution
+        </div>
+      </div>
+
+      <div class="actions" style="justify-self:end;">
+        <button id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+
+    <div class="grid3">
+      <div class="card">
+        <h3 class="sectionTitle">Connection</h3>
+        <div class="row"><div class="label">Mode</div><div class="value">Public Viewer</div></div>
+        <div class="row"><div class="label">Network</div><div class="value" id="networkVal">—</div></div>
+        <div class="row"><div class="label">Last Sync</div><div class="value" id="lastSync">—</div></div>
+        <div class="row">
+          <div class="label">Token Address</div>
+          <div class="value mono">
+            <span id="tokenAddr">—</span> <button class="copyBtn miniBtn" id="copyTokenBtn">copy</button>
+          </div>
+        </div>
+        <div class="row"><div class="label">Token Symbol</div><div class="value mono" id="tokenSymbol">—</div></div>
+      </div>
+
+      <div class="card" id="vaultOverviewCard">
+        <h3 class="sectionTitle">Vault Overview</h3>
+        <div class="row"><div class="label">Initial Vested Token Balance</div><div class="value" id="vaultRemaining">—</div></div>
+        <div class="row"><div class="label">Vested Funds Available</div><div class="value" id="protectedAvailableVal">—</div></div>
+        <div class="row"><div class="label">Treasury Funds (Non-Vesting) Available</div><div class="value" id="excessAvailableVal">—</div></div>
+        <div class="row"><div class="label">Total Treasury Funds (Non-Vesting)</div><div class="value" id="excessBalanceVal">—</div></div>
+        <div class="row"><div class="label">Vesting Progress</div><div class="value" id="vestingProgressText">—</div></div>
+        <div class="row" style="margin-top:8px;"><div class="label">Next Vest Unlock</div><div class="value" id="nextVestDate">—</div></div>
+        <div class="row"><div class="label">Unlock Countdown</div><div class="value" id="nextVestCountdown">—</div></div>
+        <div class="bar"><div id="nextVestBar"></div></div>
+        <div class="row"><div class="label">Unlock Detail</div><div class="value" id="vestTooltip">—</div></div>
+        <div class="row hidden" id="emptyVaultRow"><div class="label">Vault State</div><div class="value status ready">Vault fully distributed</div></div>
+      </div>
+
+      <div class="card">
+        <h3 class="sectionTitle">Vault Health</h3>
+        <div class="row">
+          <div class="label">Vault Status</div>
+          <div class="value"><span id="vaultStatusBadge" class="badge badge-ok">HEALTHY</span></div>
+        </div>
+        <div class="row"><div class="label">Contract</div><div class="value" id="healthContract">—</div></div>
+        <div class="row"><div class="label">Vault Funding</div><div class="value" id="healthFunding">—</div></div>
+        <div class="row"><div class="label">RPC Status</div><div class="value" id="rpcStatus">—</div></div>
+        <div class="row"><div class="label"><strong>Vault Rules</strong></div><div class="value"></div></div>
+        <div class="row"><div class="label">Execution Delay</div><div class="value" id="paramDelay">—</div></div>
+        <div class="row"><div class="label">Cancel Window</div><div class="value" id="paramCancel">—</div></div>
+        <div class="row"><div class="label">Expiry Window</div><div class="value" id="paramExpiry">—</div></div>
+        <div id="healthSummary" class="notice">Waiting for refresh.</div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3 class="sectionTitle">Withdrawal Timeline</h3>
+        <div class="row"><div class="label">Status</div><div class="value status" id="vaultStatus">—</div></div>
+        <div class="row"><div class="label">Purpose Hash</div><div class="value mono" id="purposeHashVal">—</div></div>
+        <div class="row"><div class="label">Request Amount</div><div class="value" id="requestAmountVal">—</div></div>
+        <div class="row"><div class="label">Executable In</div><div class="value" id="execTimer">—</div></div>
+        <div class="row"><div class="label">Expires In</div><div class="value" id="expTimer">—</div></div>
+
+        <div class="timelineWrap" id="timelineWrap" style="margin-top:14px;">
+          <div class="timelineRail phase-idle" id="timelineRail" style="
+            position:relative;
+            height:6px;
+            border-radius:999px;
+            background:#ebe7df;
+            overflow:visible;
+            box-shadow:inset 0 1px 2px rgba(0,0,0,.06);
+          ">
+            <div class="timelineProgress" id="timelineProgress" style="
+              position:absolute;
+              left:0;
+              top:0;
+              height:100%;
+              width:0%;
+              border-radius:999px;
+              background:linear-gradient(90deg,#dc2626,#ef4444);
+              transition:width .65s cubic-bezier(.22,.9,.33,1), background .35s ease;
+            "></div>
+          </div>
+          <div class="timelineNodes" aria-hidden="true" style="position:relative;height:18px;margin-top:-12px;">
+            <div class="timelineNode request reached" id="nodeRequest" title="Withdrawal request recorded on-chain." style="position:absolute;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;border:2px solid #d8d2c7;background:#fffdf9;left:0%;"></div>
+            <div class="timelineNode cancel" id="nodeCancel" title="Cancellation window closes at this point." style="position:absolute;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;border:2px solid #d8d2c7;background:#fffdf9;left:25%;"></div>
+            <div class="timelineNode execute" id="nodeExecute" title="Transparency delay ends. Execution becomes available here." style="position:absolute;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;border:2px solid #d8d2c7;background:#fffdf9;left:66.6667%;"></div>
+            <div class="timelineNode expiry" id="nodeExpiry" title="Execution window expires here." style="position:absolute;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;border:2px solid #d8d2c7;background:#fffdf9;left:100%;"></div>
+          </div>
+          <div class="timelineLabels" style="position:relative;height:52px;margin-top:14px;font-size:11px;font-weight:700;letter-spacing:.02em;color:#7b7468;">
+            <span class="request" style="position:absolute;top:0;line-height:1.22;text-align:left;white-space:normal;word-break:keep-all;left:0;width:96px;">Withdrawal<br>Requested</span>
+            <span class="cancel" style="position:absolute;top:0;line-height:1.22;text-align:center;white-space:normal;word-break:keep-all;left:25%;width:126px;transform:translateX(-50%);">Cancellation Window<br>Closes</span>
+            <span class="execute" style="position:absolute;top:0;line-height:1.22;text-align:center;white-space:normal;word-break:keep-all;left:66.6667%;width:144px;transform:translateX(-50%);">Delay Ends —<br>Execution Possible</span>
+            <span class="expiry" style="position:absolute;top:0;line-height:1.22;text-align:right;white-space:normal;word-break:keep-all;right:0;width:132px;">Execution Period<br>Expires</span>
+          </div>
+
+          <div class="timelineLiveStatus phase-final" id="timelineLiveStatus" style="
+            margin-top:12px;
+            padding:10px 12px;
+            border-radius:12px;
+            border:1px solid rgba(198,167,86,.18);
+            background:linear-gradient(180deg,#fffdfa,#fbf8f1);
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:10px;
+          ">
+            <div>
+              <div class="timelineLiveText" id="timelineLiveText" style="font-size:13px;font-weight:700;color:#2c2416;">No active withdrawal request</div>
+              <div class="timelineLiveMeta" id="timelineLiveMeta" style="font-size:12px;color:var(--muted);">The timeline will appear here if a request exists.</div>
+            </div>
+            <div class="timelineLiveMeta mono" id="timelineLiveTimer" style="font-size:12px;color:var(--muted);">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="sectionTitle">Notes</h3>
+        <div class="notice">
+          This page is <strong>read-only</strong>. It does not connect to any wallet and does not provide request/cancel/execute controls.
+        </div>
+        <div class="notice warn" style="margin-top:10px;">
+          Data is fetched from public RPC endpoints and may be delayed during congestion.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+  import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.1/+esm"
+
+  const VAULT_ADDRESS = "0x813bd049593844d8350b055c5b08d713fcfa4d3f"
+
+  const EXPLORER = {
+    97: "https://testnet.bscscan.com",
+    56: "https://bscscan.com",
+    1: "https://etherscan.io",
+    11155111: "https://sepolia.etherscan.io"
+  }
+  const NETWORK_NAMES = {97:"BNB Smart Chain (Testnet)",56:"BNB Smart Chain",1:"Ethereum Mainnet",11155111:"Sepolia"}
+
+  const ERC20_ABI = [
+    "function balanceOf(address) view returns (uint256)",
+    "function symbol() view returns (string)"
+  ]
+
+  const ABI = [
+    "function owner() view returns(address)",
+    "function token() view returns(address)",
+    "function totalAllocation() view returns(uint256)",
+    "function totalWithdrawn() view returns(uint256)",
+    "function vestedAmount() view returns(uint256)",
+    "function availableToWithdraw() view returns(uint256)",
+    "function excessAvailableToWithdraw() view returns(uint256)",
+    "function funded() view returns(bool)",
+    "function startTime() view returns(uint256)",
+    "function cliffDuration() view returns(uint256)",
+    "function intervalDuration() view returns(uint256)",
+    "function intervalCount() view returns(uint256)",
+    "function cancelWindow() view returns(uint256)",
+    "function withdrawalDelay() view returns(uint256)",
+    "function executionWindow() view returns(uint256)",
+    "function pendingWithdrawal() view returns(uint256 amount,bytes32 purposeHash,uint256 requestedAt,uint256 executableAt,uint256 expiresAt,bool exists)",
+    "event WithdrawalRequested(address indexed owner,uint256 amount,bytes32 indexed purposeHash,uint256 requestedAt,uint256 executableAt,uint256 expiresAt)",
+    "event WithdrawalExecuted(address indexed executor,address indexed owner,uint256 amount,bytes32 indexed purposeHash,uint256 executedAt)",
+    "event WithdrawalCanceled(address indexed owner,uint256 amount,bytes32 indexed purposeHash,uint256 canceledAt)"
+  ]
+
+  const RPC_FALLBACKS = {
+    97: [
+      { label: "NodeReal", url: "https://bsc-testnet.nodereal.io/v1/e0ec6c3225f14b54917467e77e19e20c" },
+      { label: "PublicNode", url: "https://bsc-testnet.publicnode.com" },
+      { label: "BNB Chain", url: "https://data-seed-prebsc-2-s2.bnbchain.org:8545" }
+    ],
+    56: [
+      { label: "BNB Chain", url: "https://bsc-dataseed1.bnbchain.org" }
+    ]
+  }
+
+  const el = (id) => document.getElementById(id)
+  const __uiCache = {}
+  const safeText = (id, value) => {
+    const n = document.getElementById(id)
+    if(!n) return
+    const v = String(value ?? "")
+    if(__uiCache[id] === v) return
+    __uiCache[id] = v
+    n.textContent = v
+  }
+  const safeClass = (id, value) => {
+    const n = document.getElementById(id)
+    if(!n) return
+    if(n.dataset.lastClass === value) return
+    n.dataset.lastClass = value
+    n.className = value
+  }
+  const safeToggle = (id, cls, force) => { const n = document.getElementById(id); if(n) n.classList.toggle(cls, force) }
+
+  function shortAddr(a){ return a ? `${a.slice(0,6)}…${a.slice(-4)}` : "—" }
+  function fmtRuleDuration(sec){
+    sec = Number(sec || 0)
+    if(sec <= 0) return "—"
+    if(sec % 86400 === 0) { const d = sec / 86400; return d === 1 ? "1 day" : `${d} days` }
+    if(sec % 3600 === 0) { const h = sec / 3600; return h === 1 ? "1 hour" : `${h} hours` }
+    if(sec % 60 === 0) { const m = sec / 60; return m === 1 ? "1 minute" : `${m} minutes` }
+    return `${sec} sec`
+  }
+  function fmtDuration(sec){
+    sec = Math.max(0, Math.floor(Number(sec || 0)))
+    const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60
+    if (d > 0) return `${d}d ${String(h).padStart(2,"0")}h ${String(m).padStart(2,"0")}m`
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`
+  }
+  function fmtDate(ts){ return !ts || Number(ts) === 0 ? "—" : new Date(Number(ts) * 1000).toLocaleString() }
+
+  let tokenSymbol = "TOKEN"
+  let latestTokenAddress = ""
+  function fmtTokenFromWei(wei){
+    try{
+      const n = Number(ethers.formatUnits(wei ?? 0n, 18))
+      return `${n.toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1})} ${tokenSymbol}`
+    }catch{
+      return `0.0 ${tokenSymbol}`
+    }
+  }
+  function fmtPercent(n){ return `${Number(n).toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1})}%` }
+
+  function setNotice(id,text,kind=""){
+    const node = el(id)
+    if(!node) return
+    node.textContent = text
+    node.className = `notice${kind ? " " + kind : ""}`
+  }
+  function copyText(txt, btn){
+    navigator.clipboard.writeText(txt || "").then(()=>{
+      if(!btn) return
+      const original = btn.innerText
+      btn.innerText = "Copied"
+      setTimeout(()=>{ btn.innerText = original },1200)
+    }).catch(()=>{})
+  }
+  function explorerAddress(addr){ return EXPLORER[chainId] ? `${EXPLORER[chainId]}/address/${addr}` : null }
+
+  let provider = null
+  let contract = null
+  let tokenContract = null
+  let chainId = 97
+  let currentRpcLabel = "NodeReal"
+  let vaultConfig = { cancelWindow: 0, withdrawalDelay: 0, executionWindow: 0, startTime: 0, cliffDuration: 0, intervalDuration: 0, intervalCount: 0 }
+  let latestState = null
+  let countdownTimer = null
+  let vestTimer = null
+  let nextVestUnlockTs = 0
+
+  async function pickReadProvider(){
+    const candidates = RPC_FALLBACKS[chainId] || []
+    for(const rpc of candidates){
+      try{
+        const p = new ethers.JsonRpcProvider(rpc.url)
+        await p.getBlockNumber()
+        currentRpcLabel = rpc.label
+        return p
+      }catch{}
+    }
+    throw new Error("All RPC endpoints failed")
+  }
+
+  function statusClassFor(state){
+    if(state==="IDLE") return "status ready"
+    if(state==="CANCEL") return "status cancel"
+    if(state==="DELAY") return "status delay"
+    if(state==="EXEC") return "status exec"
+    return "status expired"
+  }
+  function statusTextFor(state){
+    if(state==="IDLE") return "READY"
+    if(state==="CANCEL") return "CANCEL WINDOW"
+    if(state==="DELAY") return "DELAY ACTIVE"
+    if(state==="EXEC") return "EXECUTABLE"
+    return "EXPIRED"
+  }
+  function determineState(pending, req, nextExec, exp){
+    if(!pending) return "IDLE"
+    const now=Math.floor(Date.now()/1000)
+    const cancelEnd=req+Number(vaultConfig.cancelWindow||0)
+    if(now<cancelEnd) return "CANCEL"
+    if(now<nextExec) return "DELAY"
+    if(now<exp) return "EXEC"
+    return "EXPIRED"
+  }
+
+  function resetSegments(){
+    const rail = el("timelineRail")
+    const progress = el("timelineProgress")
+    const liveStatus = el("timelineLiveStatus")
+    if(rail) rail.className = "timelineRail phase-idle"
+    if(progress) progress.style.width = "0%"
+    if(liveStatus) liveStatus.className = "timelineLiveStatus phase-final"
+    ;["nodeRequest","nodeCancel","nodeExecute","nodeExpiry"].forEach(id=>{
+      const n = el(id)
+      if(!n) return
+      if(id === "nodeRequest") n.className = "timelineNode request reached"
+      if(id === "nodeCancel") n.className = "timelineNode cancel"
+      if(id === "nodeExecute") n.className = "timelineNode execute"
+      if(id === "nodeExpiry") n.className = "timelineNode expiry"
+    })
+    safeText("timelineLiveText","No active withdrawal request")
+    safeText("timelineLiveMeta","The timeline will appear here if a request exists.")
+    safeText("timelineLiveTimer","—")
+  }
+
+  function applySegmentState(state, pending, reqTime=0, execTime=0, expTime=0){
+    resetSegments()
+    if(!pending) return
+
+    const rail = el("timelineRail")
+    const progress = el("timelineProgress")
+    const liveStatus = el("timelineLiveStatus")
+    const nodeCancel = el("nodeCancel")
+    const nodeExecute = el("nodeExecute")
+    const nodeExpiry = el("nodeExpiry")
+
+    const now = Math.floor(Date.now()/1000)
+    const cancelEnd = reqTime + Number(vaultConfig.cancelWindow || 0)
+
+    let progressPct = 0
+    if(now < cancelEnd){
+      const segment = Math.max(1, cancelEnd - reqTime)
+      progressPct = Math.max(0, Math.min(1, (now - reqTime) / segment)) * 25
+    }else if(now < execTime){
+      const segment = Math.max(1, execTime - cancelEnd)
+      progressPct = 25 + (Math.max(0, Math.min(1, (now - cancelEnd) / segment)) * (66.6667 - 25))
+    }else if(now < expTime){
+      const segment = Math.max(1, expTime - execTime)
+      progressPct = 66.6667 + (Math.max(0, Math.min(1, (now - execTime) / segment)) * (100 - 66.6667))
+    }else{
+      progressPct = 100
+    }
+    if(progress) progress.style.width = `${progressPct}%`
+
+    if(now >= cancelEnd && nodeCancel) nodeCancel.classList.add("reached")
+    if(now >= execTime && nodeExecute) nodeExecute.classList.add("reached")
+    if(now >= expTime && nodeExpiry) nodeExpiry.classList.add("reached")
+
+    let phase = "cancel"
+    let title = "Cancellation window active"
+    let meta = "A withdrawal request exists. Cancellation is possible until the next milestone."
+    let timer = cancelEnd > now ? fmtDuration(cancelEnd - now) : "Closed"
+
+    if(now < cancelEnd){
+      phase = "cancel"
+      title = "Cancellation window active"
+      meta = "Cancellation is available until this window closes."
+      timer = cancelEnd > now ? fmtDuration(cancelEnd - now) : "Closed"
+    }else if(now < execTime){
+      phase = "delay"
+      title = "Transparency delay active"
+      meta = "Execution is locked until the delay ends."
+      timer = execTime > now ? fmtDuration(execTime - now) : "Ready"
+    }else if(now < expTime){
+      phase = "exec"
+      title = "Executable"
+      meta = "The execution window is open."
+      timer = expTime > now ? fmtDuration(expTime - now) : "Expired"
+    }else{
+      phase = "final"
+      title = "Expired"
+      meta = "The execution window closed before the request executed."
+      timer = "Expired"
+    }
+
+    if(rail) rail.className = `timelineRail phase-${phase}`
+    if(liveStatus) liveStatus.className = `timelineLiveStatus phase-${phase}`
+    safeText("timelineLiveText", title)
+    safeText("timelineLiveMeta", meta)
+    safeText("timelineLiveTimer", timer)
+  }
+
+  function setBar(id,pct){
+    const n = el(id)
+    if(!n) return
+    const v = Math.max(0,Math.min(100,Number(pct)||0)) + "%"
+    if(n.dataset.lastWidth === v) return
+    n.dataset.lastWidth = v
+    n.style.width = v
+  }
+
+  function startVestCountdown(){
+    if(vestTimer) clearInterval(vestTimer)
+    const tickVest = ()=>{
+      if(!nextVestUnlockTs){ safeText("nextVestCountdown", "Complete"); return }
+      const now = Math.floor(Date.now()/1000)
+      if(now >= nextVestUnlockTs){ safeText("nextVestCountdown", "Unlocked"); return }
+      safeText("nextVestCountdown", fmtDuration(nextVestUnlockTs - now))
+    }
+    tickVest()
+    vestTimer = setInterval(tickVest, 1000)
+  }
+
+  function updateCountdowns(){
+    if(!latestState){
+      safeText("execTimer","—")
+      safeText("expTimer","—")
+      resetSegments()
+      return
+    }
+    const { pending, reqTime, execTime, expTime } = latestState
+    if(!pending){
+      safeText("execTimer","—")
+      safeText("expTimer","—")
+      resetSegments()
+      return
+    }
+    const tick = ()=>{
+      const now = Math.floor(Date.now()/1000)
+      safeText("execTimer", execTime > now ? fmtDuration(execTime - now) : "Ready")
+      safeText("expTimer", expTime > now ? fmtDuration(expTime - now) : "Expired")
+      applySegmentState(determineState(pending, reqTime, execTime, expTime), pending, reqTime, execTime, expTime)
+    }
+    tick()
+    if(countdownTimer) clearInterval(countdownTimer)
+    countdownTimer = setInterval(tick, 1000)
+  }
+
+  async function refreshAll(){
+    const dot = el("syncDot")
+    try{
+      if(!provider) provider = await pickReadProvider()
+      const net = await provider.getNetwork()
+      chainId = Number(net.chainId)
+      safeText("networkHeader", NETWORK_NAMES[chainId] || `Chain ${chainId}`)
+      safeText("networkVal", NETWORK_NAMES[chainId] || `Chain ID ${chainId}`)
+      safeText("lastSync", new Date().toLocaleTimeString())
+      safeText("lastSyncTime", new Date().toLocaleTimeString())
+      safeText("rpcStatus", `OK (${currentRpcLabel})`)
+      safeClass("rpcStatus", "value status ready")
+      if(dot) dot.style.background = "#22c55e"
+
+      contract = new ethers.Contract(VAULT_ADDRESS, ABI, provider)
+      safeText("vaultAddrHeader", shortAddr(VAULT_ADDRESS))
+      const link = el("vaultExplorerLink")
+      if(link){
+        link.href = explorerAddress(VAULT_ADDRESS) || "#"
+      }
+
+      const block = await provider.getBlockNumber()
+      safeText("blockHeader", block.toLocaleString())
+
+      const [
+        owner,
+        token,
+        totalAllocation,
+        totalWithdrawn,
+        availableToWithdraw,
+        funded,
+        startTime,
+        cliffDuration,
+        intervalDuration,
+        intervalCount,
+        cancelWindow,
+        withdrawalDelay,
+        executionWindow,
+        pendingWithdrawal
+      ] = await Promise.all([
+        contract.owner(),
+        contract.token(),
+        contract.totalAllocation(),
+        contract.totalWithdrawn(),
+        contract.availableToWithdraw(),
+        contract.funded(),
+        contract.startTime(),
+        contract.cliffDuration(),
+        contract.intervalDuration(),
+        contract.intervalCount(),
+        contract.cancelWindow(),
+        contract.withdrawalDelay(),
+        contract.executionWindow(),
+        contract.pendingWithdrawal()
+      ])
+
+      let excessAvailable = 0n
+      let excessSupported = false
+      try{
+        excessAvailable = await contract.excessAvailableToWithdraw()
+        excessSupported = true
+      }catch{}
+
+      vaultConfig = {
+        startTime: Number(startTime),
+        cliffDuration: Number(cliffDuration),
+        intervalDuration: Number(intervalDuration),
+        intervalCount: Number(intervalCount),
+        cancelWindow: Number(cancelWindow),
+        withdrawalDelay: Number(withdrawalDelay),
+        executionWindow: Number(executionWindow)
+      }
+
+      latestTokenAddress = token
+      tokenContract = new ethers.Contract(token, ERC20_ABI, provider)
+      let tokenBalance = 0n
+      try{
+        const [bal, sym] = await Promise.all([
+          tokenContract.balanceOf(VAULT_ADDRESS),
+          tokenContract.symbol().catch(()=> "TOKEN")
+        ])
+        tokenBalance = bal
+        tokenSymbol = sym || "TOKEN"
+      }catch{
+        tokenBalance = 0n
+        tokenSymbol = "TOKEN"
+      }
+
+      safeText("tokenAddr", shortAddr(token))
+      safeText("tokenSymbol", tokenSymbol)
+
+      const remaining = totalAllocation - totalWithdrawn
+      const excessBalance = tokenBalance > remaining ? tokenBalance - remaining : 0n
+
+      safeText("vaultRemaining", fmtTokenFromWei(remaining))
+      safeText("protectedAvailableVal", fmtTokenFromWei(availableToWithdraw))
+      safeText("excessAvailableVal", excessSupported ? fmtTokenFromWei(excessAvailable) : "Unavailable")
+      safeText("excessBalanceVal", fmtTokenFromWei(excessBalance))
+
+      const now = Math.floor(Date.now()/1000)
+      const cliffEnd = Number(startTime) + Number(cliffDuration)
+      const steps = Math.max(1, Number(intervalCount))
+      let completeSteps = 0
+      if(now > cliffEnd){
+        completeSteps = Math.floor((now - cliffEnd) / Math.max(1, Number(intervalDuration))) + 1
+      }
+      completeSteps = Math.min(steps, completeSteps)
+      const vestPct = steps > 0 ? (completeSteps / steps) * 100 : 0
+      safeText("vestingProgressText", `${completeSteps} of ${steps} intervals (${fmtPercent(vestPct)})`)
+
+      let nextUnlockTs = 0
+      if(now < cliffEnd){
+        nextUnlockTs = cliffEnd
+        safeText("vestTooltip", `Cliff ends ${fmtRuleDuration(cliffDuration)} after start · ${steps} total intervals`)
+      }else if(completeSteps >= steps){
+        nextUnlockTs = 0
+        safeText("vestTooltip", `Fully vested · ${steps} intervals of ${fmtRuleDuration(intervalDuration)}`)
+      }else{
+        nextUnlockTs = cliffEnd + (completeSteps * Number(intervalDuration))
+        const perUnlock = totalAllocation > 0n ? totalAllocation / BigInt(steps) : 0n
+        safeText("vestTooltip", `Interval ${completeSteps + 1} of ${steps} · ${fmtRuleDuration(intervalDuration)} · ~${fmtTokenFromWei(perUnlock)}`)
+      }
+      safeText("nextVestDate", nextUnlockTs ? fmtDate(nextUnlockTs) : "Complete")
+      nextVestUnlockTs = nextUnlockTs
+      safeText("nextVestCountdown", nextUnlockTs ? (nextUnlockTs > now ? fmtDuration(nextUnlockTs - now) : "Unlocked") : "Complete")
+
+      if(nextUnlockTs){
+        const unlockTotal = Math.max(1, nextUnlockTs - now)
+        const unlockElapsed = Math.max(0, (vaultConfig.intervalDuration || 1) - unlockTotal)
+        const pct = Math.max(0, Math.min(100, (unlockElapsed / (vaultConfig.intervalDuration || 1)) * 100))
+        setBar("nextVestBar", pct)
+      }else{
+        setBar("nextVestBar", 100)
+      }
+      startVestCountdown()
+
+      safeToggle("emptyVaultRow", "hidden", remaining > 0n)
+
+      let pending = !!pendingWithdrawal.exists
+      const reqTime = Number(pendingWithdrawal.requestedAt)
+      const execTime = Number(pendingWithdrawal.executableAt)
+      const expTime = Number(pendingWithdrawal.expiresAt)
+      if(pending && now > expTime) pending = false
+      const state = determineState(pending, reqTime, execTime, expTime)
+
+      latestState = { pending, state, reqTime, execTime, expTime }
+      safeText("vaultStatus", statusTextFor(state))
+      safeClass("vaultStatus", `value ${statusClassFor(state)}`)
+
+      if(pending){
+        const fullHash = pendingWithdrawal.purposeHash
+        const shortHash = `${fullHash.slice(0,6)}…${fullHash.slice(-4)}`
+        safeText("purposeHashVal", shortHash)
+        safeText("requestAmountVal", fmtTokenFromWei(pendingWithdrawal.amount))
+      }else{
+        safeText("purposeHashVal", "—")
+        safeText("requestAmountVal", "—")
+      }
+
+      updateCountdowns()
+
+      const fundingHealthy = tokenBalance >= remaining
+      safeText("healthContract", "✓ Reachable")
+      safeText("healthFunding", funded ? (fundingHealthy ? "✓ Funded" : "⚠ Balance Mismatch") : "⚠ Not funded")
+      const healthOkay = funded && fundingHealthy && totalAllocation > 0n && !!token
+      setNotice("healthSummary", healthOkay ? "Vault health looks good." : (!funded ? "Vault is not funded." : "Vault balance mismatch or configuration issue detected."), healthOkay ? "good" : "warn")
+
+      safeText("paramDelay", fmtRuleDuration(withdrawalDelay))
+      safeText("paramCancel", fmtRuleDuration(cancelWindow))
+      safeText("paramExpiry", fmtRuleDuration(executionWindow))
+
+      const badge = el("vaultStatusBadge")
+      if(badge){
+        badge.textContent = healthOkay ? "HEALTHY" : "CHECK"
+        badge.className = `badge ${healthOkay ? "badge-ok" : "badge-warn"}`
+      }
+    }catch(err){
+      console.error(err)
+      safeText("rpcStatus", "UNSTABLE")
+      safeClass("rpcStatus", "value status bad")
+      if(dot) dot.style.background = "#ef4444"
+      setNotice("healthSummary", "RPC connection unstable or contract read failed.", "bad")
+    }
+  }
+
+  el("refreshBtn")?.addEventListener("click", refreshAll)
+  el("copyVaultHeaderBtn")?.addEventListener("click", (e)=>copyText(VAULT_ADDRESS, e.target))
+  el("copyTokenBtn")?.addEventListener("click", (e)=>copyText(latestTokenAddress || "", e.target))
+
+  // First refresh
+  await (async ()=>{
+    // Default view assumes BSC testnet for the provided vault address.
+    // If this vault is deployed elsewhere, update chainId and RPC_FALLBACKS above.
+    try{
+      provider = await pickReadProvider()
+      const net = await provider.getNetwork()
+      chainId = Number(net.chainId)
+    }catch{}
+    await refreshAll()
+    setInterval(()=>refreshAll().catch(()=>{}), 15000)
+  })()
+  </script>
+</body>
+</html>
+

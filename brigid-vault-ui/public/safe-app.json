@@ -1,0 +1,7 @@
+{
+  "name": "BrigidVault Operator",
+  "description": "Operator console for BrigidVault treasury vault",
+  "iconPath": "https://safe.global/favicon.ico",
+  "appUrl": "./",
+  "safeAppsSDKVersion": "1.0.0"
+}

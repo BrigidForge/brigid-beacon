@@ -67,6 +67,33 @@ export async function registerHealthAnalyticsRoutes(app: FastifyInstance, ctx: R
     };
   });
 
+  app.get('/api/v1/operator/vaults', async (req, reply) => {
+    const ownerAddress = normalizeAddress((req.query as { ownerAddress?: string }).ownerAddress ?? '');
+    if (!ownerAddress) {
+      return reply.status(400).send({
+        error: 'Bad request',
+        message: 'A valid ownerAddress query parameter is required.',
+      });
+    }
+
+    const vaults = await ctx.prisma.vault.findMany({
+      where: { owner: ownerAddress },
+      orderBy: [{ createdAt: 'desc' }, { deployedAtBlock: 'desc' }],
+    });
+
+    const statuses = await Promise.all(
+      vaults.map(async (vault) => ({
+        metadata: toVaultMetadata(vault),
+        status: await ctx.buildVaultStatusBundle(vault),
+      })),
+    );
+
+    return {
+      ownerAddress,
+      vaults: statuses,
+    };
+  });
+
   app.get('/api/v1/analytics/overview', async () => {
     const [vaults, beaconEventCount] = await Promise.all([
       ctx.prisma.vault.findMany({

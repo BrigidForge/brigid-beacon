@@ -18,6 +18,8 @@ import { markDispatcherRun, markIndexerError, markIndexerSuccess } from './ops-s
 
 async function main() {
   const provider = new JsonRpcProvider(config.rpcUrl, undefined, { batchMaxCount: 1 });
+  let pollIntervalMs = config.pollIntervalMs;
+  let blockChunkSize = config.blockChunkSize;
 
   logger.info('Beacon worker started', {
     chainId: config.chainId,
@@ -27,15 +29,30 @@ async function main() {
 
   for (;;) {
     try {
-      const { processed, toBlock, discoveryMode } = await runIndexerCycle(provider);
+      const { processed, toBlock, discoveryMode, lagBlocks } = await runIndexerCycle(provider, {
+        blockChunkSize,
+        factoryRegistryRefreshMs: config.factoryRegistryRefreshMs,
+      });
       await markIndexerSuccess({ discoveryMode });
       if (processed > 0) {
-        logger.info('Indexer cycle', { eventsProcessed: processed, toBlock });
+        logger.info('Indexer cycle', {
+          eventsProcessed: processed,
+          toBlock,
+          lagBlocks,
+          blockChunkSize,
+          pollIntervalMs,
+        });
       }
+
+      const inSteadyState = lagBlocks <= config.steadyStateLagBlocks;
+      pollIntervalMs = inSteadyState ? config.steadyStatePollIntervalMs : config.pollIntervalMs;
+      blockChunkSize = inSteadyState ? config.steadyStateBlockChunkSize : config.blockChunkSize;
     } catch (err) {
       await markIndexerError(err instanceof Error ? err.message : String(err));
       logger.error('Indexer cycle error', {
         error: err instanceof Error ? err.message : String(err),
+        blockChunkSize,
+        pollIntervalMs,
       });
     }
 
@@ -70,7 +87,7 @@ async function main() {
       });
     }
 
-    await new Promise((r) => setTimeout(r, config.pollIntervalMs));
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
   }
 }
 

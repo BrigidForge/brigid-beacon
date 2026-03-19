@@ -42,7 +42,21 @@ Typical options:
 - `scp` / `rsync` from local
 - deployment from a remote git origin
 
-### 2. Rebuild on the target host
+### 2. Install canonical runtime definitions when needed
+
+If systemd units drift, reinstall them from the repo:
+
+```bash
+cd /opt/brigidforge/repo
+sudo REPO_ROOT=/opt/brigidforge/repo bash scripts/install-systemd.sh
+```
+
+Canonical units:
+
+- `beacon-api.service` -> `apps/api`
+- `beacon-worker.service` -> `apps/worker`
+
+### 3. Rebuild on the target host
 
 Change into the deployed repo root, then rebuild what changed.
 
@@ -58,15 +72,26 @@ For viewer-only changes:
 npm run build --workspace @brigid/beacon-viewer
 ```
 
-### 3. Restart services as needed
+### 4. Publish and restart with the canonical script
 
-API changes usually require restarting the Beacon API service.
+For the hosted Beacon split surfaces, use the repo-owned deployment script:
 
-Worker changes usually require restarting the Beacon worker service.
+```bash
+cd /opt/brigidforge/repo
+sudo REPO_ROOT=/opt/brigidforge/repo bash scripts/deploy-hosted.sh
+```
 
-Viewer-only changes may only need a rebuild if static files are served directly from the built output.
+That script:
 
-### 4. Verify after restart
+- builds `apps/operator-panel`
+- builds `apps/public-panel`
+- publishes operator output to `/var/www/beacon`
+- publishes public output to `/var/www/panel`
+- copies operator media assets into `/var/www/beacon/media`
+- restarts `beacon-api.service` and `beacon-worker.service`
+- verifies API and public-host reachability
+
+### 5. Verify after restart
 
 Suggested checks:
 
@@ -81,7 +106,8 @@ curl https://your-beacon-host/api/v1/vaults/<vault-address>
 Also verify:
 - worker logs show healthy indexing activity
 - API logs show successful requests and no startup errors
-- the viewer renders the expected vault page
+- operator panel renders from `/var/www/beacon`
+- public panel renders from `/var/www/panel`
 
 ## When Runtime Reconfiguration Is Required
 
@@ -143,7 +169,8 @@ For normal work:
 
 1. make and validate changes locally
 2. treat local as the source of truth
-3. deploy only the changed layer to the hosted environment
+3. sync the repo to `/opt/brigidforge/repo`
+4. use the repo-owned deploy script and repo-owned systemd units
 4. avoid editing production files manually unless you are fixing an urgent live issue
 
 If a live hotfix is made directly on the host, make the equivalent local change as soon as possible so local remains canonical.
