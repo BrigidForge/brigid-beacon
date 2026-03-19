@@ -3,8 +3,6 @@ import { normalizeAddress, toVaultMetadata } from '../context.js';
 import type { ReturnTypeContext } from './types.js';
 
 export async function registerHealthAnalyticsRoutes(app: FastifyInstance, ctx: ReturnTypeContext) {
-  app.get('/health', async () => ({ status: 'ok' }));
-
   app.get('/api/v1/operator/health', async (_req, reply) => {
     const indexerState = await ctx.prisma.indexerState.findUnique({
       where: { id: ctx.config.indexerStateId },
