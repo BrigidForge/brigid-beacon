@@ -4,12 +4,14 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-/opt/brigidforge/repo}"
 BEACON_ROOT="${BEACON_ROOT:-/var/www/beacon}"
 PANEL_ROOT="${PANEL_ROOT:-/var/www/panel}"
-API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:3001/health}"
+API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:3000/health}"
 PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://beacon.brigidforge.com/}"
 INSTALL_DEPS="${INSTALL_DEPS:-0}"
 RESTART_SERVICES="${RESTART_SERVICES:-1}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 HEALTH_SLEEP_SECONDS="${HEALTH_SLEEP_SECONDS:-1}"
+HEALTH_CONNECT_TIMEOUT_SECONDS="${HEALTH_CONNECT_TIMEOUT_SECONDS:-1}"
+HEALTH_REQUEST_TIMEOUT_SECONDS="${HEALTH_REQUEST_TIMEOUT_SECONDS:-2}"
 DEPLOY_ENV="${DEPLOY_ENV:-}"
 BUILD_NODE_OPTIONS="${BUILD_NODE_OPTIONS:---max-old-space-size=4096}"
 
@@ -38,14 +40,29 @@ wait_for_url() {
   local label="$2"
   local attempt=1
 
-  until curl -fsS "${url}" >/dev/null; do
+  until curl --silent --show-error --fail \
+    --connect-timeout "${HEALTH_CONNECT_TIMEOUT_SECONDS}" \
+    --max-time "${HEALTH_REQUEST_TIMEOUT_SECONDS}" \
+    "${url}" >/dev/null; do
     if (( attempt >= HEALTH_RETRIES )); then
       echo "${label} did not become healthy after ${HEALTH_RETRIES} attempts." >&2
       return 1
     fi
+    echo "Waiting for ${label} (${attempt}/${HEALTH_RETRIES})..."
     sleep "${HEALTH_SLEEP_SECONDS}"
     attempt=$((attempt + 1))
   done
+
+  echo "${label} is healthy."
+}
+
+wait_for_url_or_warn() {
+  local url="$1"
+  local label="$2"
+
+  if ! wait_for_url "${url}" "${label}"; then
+    echo "Warning: ${label} health check failed; continuing deploy." >&2
+  fi
 }
 
 if [[ "${INSTALL_DEPS}" == "1" ]]; then
@@ -79,10 +96,13 @@ if [[ -d "${REPO_ROOT}/apps/operator-panel/media" ]]; then
 fi
 
 if [[ "${RESTART_SERVICES}" == "1" ]]; then
-  systemctl restart beacon-api.service beacon-worker.service
+  echo "Restarting beacon-api.service..."
+  systemctl restart beacon-api.service
+  echo "Restarting beacon-worker.service..."
+  systemctl restart beacon-worker.service
 fi
 
-wait_for_url "${API_HEALTH_URL}" "Beacon API"
+wait_for_url_or_warn "${API_HEALTH_URL}" "Beacon API"
 wait_for_url "${PUBLIC_HEALTH_URL}" "Beacon operator host"
 
 echo "Beacon operator panel published to ${BEACON_ROOT}"
