@@ -11,6 +11,7 @@
     "test": "node --import tsx --test test/*.test.tsx"
   },
   "dependencies": {
+    "@walletconnect/ethereum-provider": "^2.23.8",
     "@brigid/beacon-shared-types": "*",
     "@brigid/beacon-theme": "*",
     "ethers": "^6.13.0",

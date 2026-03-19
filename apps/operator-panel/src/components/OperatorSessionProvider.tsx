@@ -172,7 +172,7 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
       const nextError = err instanceof Error ? err.message : String(err);
       setWalletError(
         kind === 'walletconnect'
-          ? `${nextError} If the WalletConnect module could not be loaded, verify VITE_WALLETCONNECT_CDN_URL is reachable from this browser.`
+          ? `${nextError} If WalletConnect still fails here, clear this site's connection in your wallet and try again.`
           : nextError,
       );
       throw err;

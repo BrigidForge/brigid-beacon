@@ -31,14 +31,6 @@ export const DEFAULT_OPERATOR_CHAIN_ID = Number(
     : '') || '97',
 );
 
-export const WALLETCONNECT_CDN_URL =
-  (typeof import.meta !== 'undefined' &&
-  typeof import.meta.env === 'object' &&
-  import.meta.env &&
-  'VITE_WALLETCONNECT_CDN_URL' in import.meta.env
-    ? import.meta.env.VITE_WALLETCONNECT_CDN_URL
-    : '') || 'https://esm.sh/@walletconnect/ethereum-provider@2.23.8';
-
 export const VAULT_ABI = [
   'function owner() view returns(address)',
   'function token() view returns(address)',
@@ -261,8 +253,13 @@ async function getWalletConnectProvider(): Promise<WalletConnectProvider> {
     throw new Error('WalletConnect is not configured. Set VITE_WALLETCONNECT_PROJECT_ID for iPhone and QR pairing support.');
   }
 
-  const walletConnectModule = await import(/* @vite-ignore */ WALLETCONNECT_CDN_URL);
-  walletConnectProvider = (await walletConnectModule.EthereumProvider.init({
+  const walletConnectModule = await import('@walletconnect/ethereum-provider');
+  const EthereumProvider = walletConnectModule.EthereumProvider ?? walletConnectModule.default;
+  if (!EthereumProvider?.init) {
+    throw new Error('WalletConnect provider module loaded without EthereumProvider support.');
+  }
+
+  walletConnectProvider = (await EthereumProvider.init({
     projectId,
     chains: [DEFAULT_OPERATOR_CHAIN_ID],
     optionalChains: [1, 56, 97, 11155111].filter((chainId, index, list) => list.indexOf(chainId) === index && chainId !== DEFAULT_OPERATOR_CHAIN_ID),
