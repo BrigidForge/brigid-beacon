@@ -360,6 +360,21 @@ export function getActiveWalletSession(): WalletSession | null {
   return activeWalletSession;
 }
 
+// Opens the connected wallet app on iOS via the WalletConnect session redirect URL.
+// Must be called synchronously before any await inside an onClick handler so that
+// iOS Safari does not block the window.open call as an untrusted popup.
+export function openWalletForSigning(session: WalletSession): void {
+  if (session.kind !== 'walletconnect' || !walletConnectProvider) return;
+  const raw = walletConnectProvider as unknown as {
+    session?: { peer?: { metadata?: { redirect?: { native?: string; universal?: string } } } };
+  };
+  const redirect = raw.session?.peer?.metadata?.redirect;
+  const url = redirect?.universal ?? redirect?.native;
+  if (url && typeof window !== 'undefined') {
+    window.open(url, '_blank');
+  }
+}
+
 export async function requestWithdrawalTx(args: {
   vaultAddress: string;
   signer: ethers.JsonRpcSigner;
