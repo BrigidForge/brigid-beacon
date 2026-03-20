@@ -6,6 +6,7 @@ import {
   cancelWithdrawalTx,
   executeWithdrawalTx,
   EXPLORERS,
+  openWalletForSigning,
   readOperatorSnapshot,
   requestWithdrawalTx,
   type OperatorVaultSnapshot,
@@ -190,10 +191,11 @@ export function TransactionsTab(props: {
 
   async function handleRequestWithdrawal() {
     if (!props.walletSession?.address || !canRequest) return;
+    const connection = props.walletSession;
+    preserveScrollPosition(); setBusy(true); setError(null);
+    setMessage(`Submitting ${withdrawalType} withdrawal request...`);
+    openWalletForSigning(connection); // must be before first await (iOS gesture restriction)
     try {
-      preserveScrollPosition(); setBusy(true); setError(null);
-      setMessage(`Submitting ${withdrawalType} withdrawal request...`);
-      const connection = props.walletSession;
       const purposeHash = ethers.id(purposeInput.trim());
       storePurpose(purposeHash, purposeInput.trim());
       const txHash = await requestWithdrawalTx({ vaultAddress: props.vaultAddress, signer: connection.signer, amountInput: amountInput.trim(), bucket: withdrawalType, purposeText: purposeInput.trim() });
@@ -203,15 +205,16 @@ export function TransactionsTab(props: {
       setAmountInput(''); setPurposeInput('');
       setMessage(`Withdrawal request confirmed: ${txHash}`);
       restoreScrollPosition(); void refresh({ background: true });
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { setMessage(null); setError(err instanceof Error ? err.message : String(err)); }
     finally { setBusy(false); }
   }
 
   async function handleCancelWithdrawal() {
     if (!props.walletSession?.address) return;
+    const connection = props.walletSession;
+    preserveScrollPosition(); setBusy(true); setError(null);
+    openWalletForSigning(connection); // must be before first await (iOS gesture restriction)
     try {
-      preserveScrollPosition(); setBusy(true); setError(null);
-      const connection = props.walletSession;
       const txHash = await cancelWithdrawalTx(props.vaultAddress, connection.signer);
       if (latestRequest) setRequestOverride({ ...latestRequest, outcome: 'canceled', settledAt: Math.floor(Date.now() / 1000) });
       setMessage(`Withdrawal canceled: ${txHash}`);
@@ -222,9 +225,10 @@ export function TransactionsTab(props: {
 
   async function handleExecuteWithdrawal() {
     if (!props.walletSession?.address) return;
+    const connection = props.walletSession;
+    preserveScrollPosition(); setBusy(true); setError(null);
+    openWalletForSigning(connection); // must be before first await (iOS gesture restriction)
     try {
-      preserveScrollPosition(); setBusy(true); setError(null);
-      const connection = props.walletSession;
       const txHash = await executeWithdrawalTx(props.vaultAddress, connection.signer);
       if (latestRequest) setRequestOverride({ ...latestRequest, outcome: 'executed', settledAt: Math.floor(Date.now() / 1000) });
       setMessage(`Withdrawal executed: ${txHash}`);
