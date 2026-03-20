@@ -2,7 +2,6 @@
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-/opt/brigidforge/repo}"
-PANEL_ROOT="${PANEL_ROOT:-/var/www/panel}"
 VAULT_ROOT="${VAULT_ROOT:-/var/www/vault}"
 API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:3001/health}"
 VAULT_HEALTH_URL="${VAULT_HEALTH_URL:-https://vault.brigidforge.com/}"
@@ -29,7 +28,7 @@ fi
 cd "${REPO_ROOT}"
 
 if [[ -z "${DEPLOY_ENV}" ]]; then
-  if [[ "${PANEL_ROOT}" == *staging* || "${VAULT_ROOT}" == *staging* ]]; then
+  if [[ "${VAULT_ROOT}" == *staging* ]]; then
     DEPLOY_ENV="staging"
   else
     DEPLOY_ENV="production"
@@ -71,24 +70,15 @@ if [[ "${INSTALL_DEPS}" == "1" ]]; then
 fi
 
 set -a
-if [[ -f "${REPO_ROOT}/apps/public-panel/.env.${DEPLOY_ENV}" ]]; then
-  . "${REPO_ROOT}/apps/public-panel/.env.${DEPLOY_ENV}"
-fi
-set +a
-NODE_OPTIONS="${BUILD_NODE_OPTIONS}" npm run build -w @brigid/beacon-public-panel
-
-set -a
 if [[ -f "${REPO_ROOT}/apps/vault-ui/.env.${DEPLOY_ENV}" ]]; then
   . "${REPO_ROOT}/apps/vault-ui/.env.${DEPLOY_ENV}"
 fi
 set +a
 NODE_OPTIONS="${BUILD_NODE_OPTIONS}" npm run build -w @brigid/vault-ui
 
-mkdir -p "${PANEL_ROOT}" "${VAULT_ROOT}"
-find "${PANEL_ROOT}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+mkdir -p "${VAULT_ROOT}"
 find "${VAULT_ROOT}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
-cp -R "${REPO_ROOT}/apps/public-panel/dist/." "${PANEL_ROOT}/"
 cp -R "${REPO_ROOT}/apps/vault-ui/dist/." "${VAULT_ROOT}/"
 
 if [[ -d "${REPO_ROOT}/apps/vault-ui/media" ]]; then
@@ -107,5 +97,4 @@ wait_for_url_or_warn "${API_HEALTH_URL}" "Beacon API"
 wait_for_url_or_warn "${VAULT_HEALTH_URL}" "vault.brigidforge.com"
 wait_for_url_or_warn "${BEACON_HEALTH_URL}" "beacon.brigidforge.com"
 
-echo "Beacon public panel published to ${PANEL_ROOT}"
 echo "Vault UI published to ${VAULT_ROOT} (serves vault.brigidforge.com + beacon.brigidforge.com)"
