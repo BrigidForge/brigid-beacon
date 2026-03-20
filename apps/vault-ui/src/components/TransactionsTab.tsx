@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useOperatorSession } from './OperatorSessionProvider';
 import type { NormalizedEvent } from '@brigid/beacon-shared-types';
 import { ethers } from 'ethers';
 import { formatDurationSeconds, formatTokenAmount, formatUnixSeconds, shortenAddress } from '../lib/format';
@@ -237,6 +238,16 @@ export function TransactionsTab(props: {
     finally { setBusy(false); }
   }
 
+  const { switchChain, walletBusy } = useOperatorSession();
+  const chainMismatch = props.walletSession != null && snapshot != null && props.walletSession.chainId !== snapshot.chainId;
+
+  async function handleSwitchChain() {
+    openWalletForSigning(props.walletSession!); // open wallet before await for iOS
+    try {
+      await switchChain();
+    } catch { /* error displayed via context */ }
+  }
+
   if (loading) return <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 text-slate-300">Loading transaction controls...</div>;
   if (error && !snapshot) return (
     <div className="rounded-[2rem] border border-rose-300/20 bg-rose-300/10 p-8 text-slate-100">
@@ -255,6 +266,24 @@ export function TransactionsTab(props: {
 
   return (
     <section className="space-y-6">
+      {chainMismatch && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-amber-300/30 bg-amber-300/10 px-6 py-4">
+          <div>
+            <p className="text-sm font-semibold text-amber-200">Wrong network</p>
+            <p className="mt-1 text-sm text-slate-300">
+              Your wallet is on chain <span className="font-mono text-white">{props.walletSession!.chainId}</span> but this vault is on chain <span className="font-mono text-white">{snapshot!.chainId}</span>. Switch to BSC Testnet to submit transactions.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSwitchChain()}
+            disabled={walletBusy}
+            className="shrink-0 rounded-2xl bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:opacity-60"
+          >
+            Switch Network
+          </button>
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-4">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Protected Available</p>
