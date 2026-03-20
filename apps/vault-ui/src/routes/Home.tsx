@@ -1,0 +1,79 @@
+import { useNavigate } from 'react-router-dom';
+
+export default function Home() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex flex-col items-center gap-12 py-10">
+      <div className="text-center">
+        <p className="text-sm uppercase tracking-[0.35em] text-amber-300/70">BrigidVault Beacon</p>
+        <h1 className="mt-3 text-4xl font-semibold text-white sm:text-5xl">What would you like to do?</h1>
+        <p className="mt-4 text-slate-400">Choose your role to get started.</p>
+      </div>
+
+      <div className="grid w-full max-w-3xl gap-5 sm:grid-cols-2">
+        {/* Public Viewer */}
+        <button
+          type="button"
+          onClick={() => navigate('/view')}
+          className="group flex flex-col gap-5 rounded-[2rem] border border-white/10 bg-white/5 p-8 text-left transition hover:border-amber-300/30 hover:bg-amber-300/5"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-2xl">
+            👁
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-white">Public Vault Viewer</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              View vault status, vesting schedule, activity history, and set up email alerts — no wallet required.
+            </p>
+          </div>
+          <span className="mt-auto rounded-2xl border border-amber-300/30 px-4 py-2 text-sm font-medium text-amber-200 transition group-hover:border-amber-300/60 group-hover:bg-amber-300/10">
+            Enter vault address →
+          </span>
+        </button>
+
+        {/* Operator Panel */}
+        <button
+          type="button"
+          onClick={() => navigate('/operator')}
+          className="group flex flex-col gap-5 rounded-[2rem] border border-white/10 bg-white/5 p-8 text-left transition hover:border-sky-300/30 hover:bg-sky-300/5"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-300/20 bg-sky-300/10 text-2xl">
+            🔐
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-white">Operator Panel</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Connect your wallet to manage withdrawals, monitor your vaults, and configure Beacon notification alerts.
+            </p>
+          </div>
+          <span className="mt-auto rounded-2xl border border-sky-300/30 px-4 py-2 text-sm font-medium text-sky-200 transition group-hover:border-sky-300/60 group-hover:bg-sky-300/10">
+            Connect wallet →
+          </span>
+        </button>
+      </div>
+
+      <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-3">
+        <FeaturePill color="emerald" label="Status" description="Live vault state from indexed events and vesting math." />
+        <FeaturePill color="sky" label="Activity" description="Full timeline of funding, requests, cancels, and executions." />
+        <FeaturePill color="amber" label="Alerts" description="Email and webhook notifications via the Beacon system." />
+      </div>
+    </div>
+  );
+}
+
+const PILL_STYLES = {
+  emerald: { wrap: 'border-emerald-300/20 bg-emerald-300/10', label: 'text-emerald-200/70', desc: 'text-emerald-50/90' },
+  sky:     { wrap: 'border-sky-300/20 bg-sky-300/10',         label: 'text-sky-200/70',     desc: 'text-sky-50/90' },
+  amber:   { wrap: 'border-amber-300/20 bg-amber-300/10',     label: 'text-amber-200/70',   desc: 'text-amber-50/90' },
+};
+
+function FeaturePill({ color, label, description }: { color: 'emerald' | 'sky' | 'amber'; label: string; description: string }) {
+  const s = PILL_STYLES[color];
+  return (
+    <div className={`rounded-3xl border p-5 ${s.wrap}`}>
+      <p className={`text-sm uppercase tracking-[0.25em] ${s.label}`}>{label}</p>
+      <p className={`mt-2 text-sm leading-6 ${s.desc}`}>{description}</p>
+    </div>
+  );
+}
