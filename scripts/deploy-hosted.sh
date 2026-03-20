@@ -4,8 +4,10 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-/opt/brigidforge/repo}"
 BEACON_ROOT="${BEACON_ROOT:-/var/www/beacon}"
 PANEL_ROOT="${PANEL_ROOT:-/var/www/panel}"
+VAULT_ROOT="${VAULT_ROOT:-/var/www/vault}"
 API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:3001/health}"
 PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://beacon.brigidforge.com/}"
+VAULT_HEALTH_URL="${VAULT_HEALTH_URL:-https://vault.brigidforge.com/}"
 INSTALL_DEPS="${INSTALL_DEPS:-0}"
 RESTART_SERVICES="${RESTART_SERVICES:-1}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
@@ -83,16 +85,30 @@ fi
 set +a
 NODE_OPTIONS="${BUILD_NODE_OPTIONS}" npm run build -w @brigid/beacon-public-panel
 
-mkdir -p "${BEACON_ROOT}" "${PANEL_ROOT}"
+set -a
+if [[ -f "${REPO_ROOT}/apps/vault-ui/.env.${DEPLOY_ENV}" ]]; then
+  . "${REPO_ROOT}/apps/vault-ui/.env.${DEPLOY_ENV}"
+fi
+set +a
+NODE_OPTIONS="${BUILD_NODE_OPTIONS}" npm run build -w @brigid/vault-ui
+
+mkdir -p "${BEACON_ROOT}" "${PANEL_ROOT}" "${VAULT_ROOT}"
 find "${BEACON_ROOT}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 find "${PANEL_ROOT}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+find "${VAULT_ROOT}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
 cp -R "${REPO_ROOT}/apps/operator-panel/dist/." "${BEACON_ROOT}/"
 cp -R "${REPO_ROOT}/apps/public-panel/dist/." "${PANEL_ROOT}/"
+cp -R "${REPO_ROOT}/apps/vault-ui/dist/." "${VAULT_ROOT}/"
 
 if [[ -d "${REPO_ROOT}/apps/operator-panel/media" ]]; then
   mkdir -p "${BEACON_ROOT}/media"
   cp -R "${REPO_ROOT}/apps/operator-panel/media/." "${BEACON_ROOT}/media/"
+fi
+
+if [[ -d "${REPO_ROOT}/apps/vault-ui/media" ]]; then
+  mkdir -p "${VAULT_ROOT}/media"
+  cp -R "${REPO_ROOT}/apps/vault-ui/media/." "${VAULT_ROOT}/media/"
 fi
 
 if [[ "${RESTART_SERVICES}" == "1" ]]; then
@@ -104,6 +120,8 @@ fi
 
 wait_for_url_or_warn "${API_HEALTH_URL}" "Beacon API"
 wait_for_url "${PUBLIC_HEALTH_URL}" "Beacon operator host"
+wait_for_url_or_warn "${VAULT_HEALTH_URL}" "Vault UI"
 
 echo "Beacon operator panel published to ${BEACON_ROOT}"
 echo "Beacon public panel published to ${PANEL_ROOT}"
+echo "Vault UI published to ${VAULT_ROOT}"

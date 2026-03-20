@@ -85,11 +85,34 @@ That script:
 
 - builds `apps/operator-panel`
 - builds `apps/public-panel`
+- builds `apps/vault-ui`
 - publishes operator output to `/var/www/beacon`
 - publishes public output to `/var/www/panel`
+- publishes vault UI output to `/var/www/vault`
 - copies operator media assets into `/var/www/beacon/media`
+- copies vault UI media assets into `/var/www/vault/media`
 - restarts `beacon-api.service` and `beacon-worker.service`
-- verifies API and public-host reachability
+- verifies API, public-host, and vault UI reachability
+
+**First-time vault UI setup** (only needed once on a new host):
+
+```bash
+# 1. Install the nginx config
+cp ops/nginx/vault.brigidforge.com.conf /etc/nginx/sites-available/vault.brigidforge.com
+ln -s /etc/nginx/sites-available/vault.brigidforge.com /etc/nginx/sites-enabled/
+
+# 2. Obtain TLS cert
+certbot --nginx -d vault.brigidforge.com
+
+# 3. Test and reload nginx
+nginx -t && systemctl reload nginx
+
+# 4. Create the webroot
+mkdir -p /var/www/vault
+```
+
+For staging, use `ops/nginx/staging-vault.brigidforge.com.conf` and pass
+`VAULT_ROOT=/var/www/staging-vault VAULT_HEALTH_URL=https://staging-vault.brigidforge.com/` to the deploy script.
 
 ### 5. Verify after restart
 
@@ -108,6 +131,7 @@ Also verify:
 - API logs show successful requests and no startup errors
 - operator panel renders from `/var/www/beacon`
 - public panel renders from `/var/www/panel`
+- vault UI renders from `/var/www/vault`
 
 ## When Runtime Reconfiguration Is Required
 
