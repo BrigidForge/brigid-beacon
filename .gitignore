@@ -10,3 +10,4 @@ playwright-report/
 
 apps/viewer/dist/
 apps/vault-ui/dist/
+apps/vault-ui/tsconfig.tsbuildinfo
