@@ -29,6 +29,10 @@ export function buildApp(
   const app = Fastify({ logger: true });
   const ctx = createApiContext(prisma, config, { chainProvider: options.chainProvider });
 
+  app.get('/health', async () => {
+    return { status: 'ok' };
+  });
+
   registerErrorHandling(app);
 
   void app.register(cors, {
