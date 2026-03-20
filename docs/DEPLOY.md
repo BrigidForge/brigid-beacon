@@ -83,16 +83,11 @@ sudo REPO_ROOT=/opt/brigidforge/repo bash scripts/deploy-hosted.sh
 
 That script:
 
-- builds `apps/operator-panel`
-- builds `apps/public-panel`
 - builds `apps/vault-ui`
-- publishes operator output to `/var/www/beacon`
-- publishes public output to `/var/www/panel`
 - publishes vault UI output to `/var/www/vault`
-- copies operator media assets into `/var/www/beacon/media`
 - copies vault UI media assets into `/var/www/vault/media`
 - restarts `beacon-api.service` and `beacon-worker.service`
-- verifies API, public-host, and vault UI reachability
+- verifies API, vault.brigidforge.com, and beacon.brigidforge.com reachability
 
 **First-time vault UI setup** (only needed once on a new host):
 
@@ -129,9 +124,7 @@ curl https://your-beacon-host/api/v1/vaults/<vault-address>
 Also verify:
 - worker logs show healthy indexing activity
 - API logs show successful requests and no startup errors
-- operator panel renders from `/var/www/beacon`
-- public panel renders from `/var/www/panel`
-- vault UI renders from `/var/www/vault`
+- vault UI renders from `/var/www/vault` (serves both vault.brigidforge.com and beacon.brigidforge.com)
 
 ## When Runtime Reconfiguration Is Required
 
