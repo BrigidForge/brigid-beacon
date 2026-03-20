@@ -11,6 +11,7 @@ import {
   connectWallet,
   disconnectWallet,
   getActiveWalletSession,
+  switchToOperatorChain,
   walletConnectEnabled,
   type WalletConnectionKind,
   type WalletSession,
@@ -32,6 +33,7 @@ type OperatorSessionContextValue = {
   ownedVaults: OperatorOwnedVaultsResponse | null;
   ownedVaultsLoading: boolean;
   ensureWallet: (kind?: WalletConnectionKind) => Promise<WalletSession>;
+  switchChain: () => Promise<void>;
   handleDisconnect: () => Promise<void>;
   clearWalletFeedback: () => void;
   walletConnectAvailable: boolean;
@@ -190,6 +192,20 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
     }
   }
 
+  async function switchChain() {
+    setWalletBusy(true);
+    try {
+      const updated = await switchToOperatorChain();
+      setWalletSession(updated);
+      setWalletError(null);
+    } catch (err) {
+      setWalletError(err instanceof Error ? err.message : String(err));
+      throw err;
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
   async function handleDisconnect() {
     await disconnectWallet(walletSession?.kind ?? null);
     clearStoredWalletSession();
@@ -217,6 +233,7 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
       ownedVaults,
       ownedVaultsLoading,
       ensureWallet,
+      switchChain,
       handleDisconnect,
       clearWalletFeedback,
       walletConnectAvailable: walletConnectEnabled(),

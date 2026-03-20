@@ -360,6 +360,36 @@ export function getActiveWalletSession(): WalletSession | null {
   return activeWalletSession;
 }
 
+// Chain params used by wallet_addEthereumChain if BSC testnet isn't in the wallet yet.
+const BSC_TESTNET_CHAIN_PARAMS = {
+  chainId: '0x' + DEFAULT_OPERATOR_CHAIN_ID.toString(16),
+  chainName: 'BNB Smart Chain Testnet',
+  nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+  rpcUrls: [DEFAULT_RPC_URL],
+  blockExplorerUrls: ['https://testnet.bscscan.com'],
+};
+
+// Requests a chain switch to DEFAULT_OPERATOR_CHAIN_ID and updates the active session.
+// Throws if the user rejects or the switch fails.
+export async function switchToOperatorChain(): Promise<WalletSession> {
+  if (!activeWalletSession) throw new Error('No active wallet session.');
+  const hexChainId = '0x' + DEFAULT_OPERATOR_CHAIN_ID.toString(16);
+  try {
+    await activeWalletSession.provider.send('wallet_switchEthereumChain', [{ chainId: hexChainId }]);
+  } catch (err: unknown) {
+    // 4902 = chain not yet added to wallet — add it first, then switch.
+    if ((err as { code?: number }).code === 4902) {
+      await activeWalletSession.provider.send('wallet_addEthereumChain', [BSC_TESTNET_CHAIN_PARAMS]);
+    } else {
+      throw err;
+    }
+  }
+  const network = await activeWalletSession.provider.getNetwork();
+  const signer = await activeWalletSession.provider.getSigner();
+  activeWalletSession = { ...activeWalletSession, signer, chainId: Number(network.chainId) };
+  return activeWalletSession;
+}
+
 // Opens the connected wallet app on iOS via the WalletConnect session redirect URL.
 // Must be called synchronously before any await inside an onClick handler so that
 // iOS Safari does not block the window.open call as an untrusted popup.
