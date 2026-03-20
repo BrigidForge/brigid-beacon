@@ -9,6 +9,7 @@ import {
 import { fetchOperatorOwnedVaults, type OperatorOwnedVaultsResponse } from '../lib/api';
 import {
   connectWallet,
+  DEFAULT_OPERATOR_CHAIN_ID,
   disconnectWallet,
   getActiveWalletSession,
   switchToOperatorChain,
@@ -168,16 +169,27 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
       setWalletConnectStatus(null);
       setWalletError(null);
       setWalletMessage(null);
-      const vaults = await loadOwnedVaults(session.address);
+
+      // If the wallet connected on the wrong chain, switch before loading vaults.
+      let activeSession = session;
+      if (session.chainId !== DEFAULT_OPERATOR_CHAIN_ID) {
+        try {
+          activeSession = await switchToOperatorChain();
+        } catch {
+          // Non-fatal — chain mismatch banner in TransactionsTab will prompt the user.
+        }
+      }
+
+      const vaults = await loadOwnedVaults(activeSession.address);
       if (vaults.vaults.length === 0) {
-        await disconnectWallet(session.kind);
+        await disconnectWallet(activeSession.kind);
         clearStoredWalletSession();
         setOwnedVaults(null);
         throw new Error(NO_VAULTS_MESSAGE);
       }
-      setWalletSession(session);
-      storeWalletSession(session.kind);
-      return session;
+      setWalletSession(activeSession);
+      storeWalletSession(activeSession.kind);
+      return activeSession;
     } catch (err) {
       clearStoredWalletSession();
       const nextError = err instanceof Error ? err.message : String(err);

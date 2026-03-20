@@ -262,7 +262,6 @@ async function getWalletConnectProvider(): Promise<WalletConnectProvider> {
   walletConnectProvider = (await EthereumProvider.init({
     projectId,
     chains: [DEFAULT_OPERATOR_CHAIN_ID],
-    optionalChains: [1, 56, 97, 11155111].filter((chainId, index, list) => list.indexOf(chainId) === index && chainId !== DEFAULT_OPERATOR_CHAIN_ID),
     showQrModal: false,
     metadata: {
       name: 'BrigidVault',
