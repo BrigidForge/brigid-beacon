@@ -127,3 +127,17 @@ deploy script. A follow-up task is needed to:
    designated subdomain or path
 
 ---
+
+---
+
+## [Workflow Simplification – Single Branch Migration]
+
+- Consolidated dev branch into main
+- Removed dual-branch workflow (dev/main)
+- Updated deployment hooks to main-only
+- Production now deploys directly from main
+- Reduced complexity and eliminated merge overhead
+
+Rationale:
+Simplify development workflow during pre-launch phase to improve speed, reduce errors, and maintain momentum.
+

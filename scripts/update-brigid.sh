@@ -9,29 +9,34 @@ exec 9>"${LOCK_FILE}"
 flock 9
 
 if [[ -z "${BRANCH}" ]]; then
-  echo "Usage: $0 <dev|main>" >&2
+  echo "Usage: $0 main" >&2
   exit 1
 fi
 
-case "${BRANCH}" in
-  dev)
-    BEACON_ROOT="/var/www/staging-beacon"
-    PANEL_ROOT="/var/www/staging-panel"
-    ;;
-  main)
-    BEACON_ROOT="/var/www/beacon"
-    PANEL_ROOT="/var/www/panel"
-    ;;
-  *)
-    echo "Unsupported branch: ${BRANCH}" >&2
-    exit 1
-    ;;
-esac
+if [[ "${BRANCH}" != "main" ]]; then
+  echo "Unsupported branch: ${BRANCH} (only main is deployed)" >&2
+  exit 1
+fi
+
+VAULT_ROOT="/var/www/vault"
+VAULT_HEALTH_URL="https://vault.brigidforge.com/"
+BEACON_HEALTH_URL="https://beacon.brigidforge.com/"
 
 cd "${REPO_ROOT}"
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Refusing deploy: repo is dirty at ${REPO_ROOT}" >&2
+  git status --short >&2
+  exit 1
+fi
+
 git fetch origin
 git checkout "${BRANCH}"
 git reset --hard "origin/${BRANCH}"
 
 REPO_ROOT="${REPO_ROOT}" bash "${REPO_ROOT}/scripts/install-systemd.sh"
-BEACON_ROOT="${BEACON_ROOT}" PANEL_ROOT="${PANEL_ROOT}" REPO_ROOT="${REPO_ROOT}" bash "${REPO_ROOT}/scripts/deploy-hosted.sh"
+
+VAULT_ROOT="${VAULT_ROOT}" \
+VAULT_HEALTH_URL="${VAULT_HEALTH_URL}" \
+BEACON_HEALTH_URL="${BEACON_HEALTH_URL}" \
+REPO_ROOT="${REPO_ROOT}" \
+  bash "${REPO_ROOT}/scripts/deploy-hosted.sh"

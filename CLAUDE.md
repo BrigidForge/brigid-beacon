@@ -121,20 +121,14 @@ The committed reference is `apps/vault-ui/.env.example`.
 
 | Branch | Purpose |
 |---|---|
-| `dev` | Staging — auto-deploys to `staging-vault.brigidforge.com` on push |
 | `main` | Production — auto-deploys to `vault.brigidforge.com` + `beacon.brigidforge.com` on push |
 
-Normal flow: develop on `dev`, push, test on staging, merge to `main`, push.
+Single-branch workflow: develop directly on `main`, push to deploy.
 
 ```bash
-git checkout dev
-# make changes, commit
-git push origin dev          # triggers staging auto-deploy
-
 git checkout main
-git merge --no-ff dev -m "Merge dev: <description>"
+# make changes, commit
 git push origin main         # triggers production auto-deploy
-git checkout dev
 ```
 
 ### Remote
@@ -171,7 +165,6 @@ Bare repo on server: `/var/lib/forgejo/data/forgejo-repositories/dev/brigid-beac
 
 | Branch | VAULT_ROOT | VAULT_HEALTH_URL | BEACON_HEALTH_URL |
 |---|---|---|---|
-| `dev` | `/var/www/staging-vault` | `https://staging-vault.brigidforge.com/` | `https://staging-beacon.brigidforge.com/` |
 | `main` | `/var/www/vault` | `https://vault.brigidforge.com/` | `https://beacon.brigidforge.com/` |
 
 ### What scripts/deploy-hosted.sh does
