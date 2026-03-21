@@ -1,0 +1,9 @@
+# Retired UI directories — excluded from Cursor indexing.
+# These are superseded by apps/vault-ui. See _retired/README.md.
+_retired/
+
+# Dependencies and build output
+node_modules/
+**/node_modules/
+**/dist/
+**/.turbo/

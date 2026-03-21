@@ -37,8 +37,7 @@ apps/
   vault-ui/       THE active React+Vite+Tailwind frontend (see below)
   viewer/         Legacy Beacon viewer — kept for compatibility, not actively developed
   worker/         Indexer + notification dispatcher (systemd service)
-  operator-panel-old/   RETIRED — superseded by vault-ui. Do not touch.
-  public-panel-old/     RETIRED — superseded by vault-ui. Do not touch.
+  (operator-panel-old and public-panel-old have been moved to _retired/)
 
 packages/
   shared-types/   NormalizedEvent, VaultStatus, VaultMetadata, API contracts
@@ -123,10 +122,9 @@ The committed reference is `apps/vault-ui/.env.example`.
 |---|---|
 | `main` | Production — auto-deploys to `vault.brigidforge.com` + `beacon.brigidforge.com` on push |
 
-Single-branch workflow: develop directly on `main`, push to deploy.
+**Single-branch workflow — all work goes directly on `main`.** There is no `dev` branch.
 
 ```bash
-git checkout main
 # make changes, commit
 git push origin main         # triggers production auto-deploy
 ```
@@ -148,7 +146,7 @@ Bare repo on server: `/var/lib/forgejo/data/forgejo-repositories/dev/brigid-beac
 
 ### How it works
 
-1. `git push origin dev` or `git push origin main`
+1. `git push origin main`
 2. Forgejo runs the bare repo's `post-receive` hook
 3. Hook delegates to `post-receive.d/brigid-deploy` which calls:
    ```bash
@@ -166,6 +164,8 @@ Bare repo on server: `/var/lib/forgejo/data/forgejo-repositories/dev/brigid-beac
 | Branch | VAULT_ROOT | VAULT_HEALTH_URL | BEACON_HEALTH_URL |
 |---|---|---|---|
 | `main` | `/var/www/vault` | `https://vault.brigidforge.com/` | `https://beacon.brigidforge.com/` |
+
+Note: only `main` is a valid deploy target. There is no `dev` or staging branch.
 
 ### What scripts/deploy-hosted.sh does
 
@@ -256,10 +256,12 @@ npm run ci           # typecheck + build + all tests
 
 ## What NOT to touch
 
-- `apps/operator-panel-old/` — retired, do not modify or reference
-- `apps/public-panel-old/` — retired, do not modify or reference
-- `brigid-vault-ui-old/` — retired prototype, do not reference
-- The `apps/viewer` app is maintained for compatibility but not actively developed
+- `_retired/` — all subdirectories are retired. Do not modify, reference, or suggest code from any file inside `_retired/`.
+  - `_retired/operator-panel-old/` — superseded by `apps/vault-ui` (`/operator` route)
+  - `_retired/public-panel-old/` — superseded by `apps/vault-ui` (`/view` route)
+  - `_retired/brigid-vault-ui-old/` — original HTML prototype, fully retired
+  - `_retired/public-panel/` — skeleton, superseded by `apps/vault-ui`
+- `apps/viewer/` — kept for compatibility only, not actively developed
 
 ---
 
