@@ -37,6 +37,7 @@ model Vault {
   claims         VaultClaim[]
   subscriptions  NotificationSubscription[]
   publicEmailSubscriptions PublicEmailSubscription[]
+  publicSmsSubscriptions   PublicSmsSubscription[]
 }
 
 model BeaconEvent {
@@ -53,6 +54,7 @@ model BeaconEvent {
   vault       Vault                  @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
   deliveries  NotificationDelivery[]
   publicEmailDeliveries PublicEmailDelivery[]
+  publicSmsDeliveries   PublicSmsDelivery[]
 
   @@index([vaultAddress, blockNumber, logIndex])
   @@index([vaultAddress, kind])
@@ -275,6 +277,59 @@ model PublicEmailDelivery {
 
   beaconEvent  BeaconEvent             @relation(fields: [beaconEventId], references: [id], onDelete: Cascade)
   subscription PublicEmailSubscription @relation(fields: [publicSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([beaconEventId])
+  @@index([publicSubscriptionId])
+  @@index([status])
+  @@unique([beaconEventId, publicSubscriptionId])
+}
+
+model PublicSmsFollower {
+  id             String   @id @default(cuid())
+  phone          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  unsubscribedAt DateTime?
+
+  subscriptions PublicSmsSubscription[]
+
+  @@index([unsubscribedAt])
+}
+
+model PublicSmsSubscription {
+  id                   String   @id @default(cuid())
+  followerId           String
+  vaultAddress         String
+  eventKindsJson       Json
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  disabledAt           DateTime?
+  unsubscribeTokenHash String   @unique
+
+  follower   PublicSmsFollower @relation(fields: [followerId], references: [id], onDelete: Cascade)
+  vault      Vault             @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
+  deliveries PublicSmsDelivery[]
+
+  @@unique([followerId, vaultAddress])
+  @@index([vaultAddress])
+  @@index([followerId])
+  @@index([disabledAt])
+}
+
+model PublicSmsDelivery {
+  id                   String   @id @default(cuid())
+  beaconEventId        String
+  publicSubscriptionId String
+  status               String
+  providerMessageId    String?
+  attemptCount         Int      @default(0)
+  lastAttemptAt        DateTime?
+  deliveredAt          DateTime?
+  errorMessage         String?
+  createdAt            DateTime @default(now())
+
+  beaconEvent  BeaconEvent           @relation(fields: [beaconEventId], references: [id], onDelete: Cascade)
+  subscription PublicSmsSubscription @relation(fields: [publicSubscriptionId], references: [id], onDelete: Cascade)
 
   @@index([beaconEventId])
   @@index([publicSubscriptionId])

@@ -55,6 +55,13 @@ export function normalizeAddress(input: string): string | null {
   }
 }
 
+export function normalizePhone(input: string | undefined): string | null {
+  if (!input) return null;
+  const normalized = input.trim().replace(/\s+/g, '');
+  if (!/^\+[1-9]\d{6,14}$/.test(normalized)) return null;
+  return normalized;
+}
+
 export function normalizeEmail(input: string | undefined): string | null {
   if (!input) return null;
   const normalized = input.trim().toLowerCase();
@@ -437,6 +444,63 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     return { deliveryMode: 'brevo' as const };
   }
 
+  async function sendPublicWelcomeSms(params: {
+    to: string;
+    vaultAddress: string;
+    eventKinds: string[];
+    unsubscribeToken: string;
+    subscriptionId: string;
+  }) {
+    if (!config.brevoApiKey) {
+      return { deliveryMode: 'preview' as const };
+    }
+
+    const baseUrl = config.publicAppBaseUrl?.replace(/\/$/, '') ?? '';
+    const vaultUrl = baseUrl ? `${baseUrl}/vault/${params.vaultAddress}` : null;
+
+    let unsubscribeUrl = vaultUrl;
+    if (vaultUrl && config.publicEmailLinkSecret) {
+      const { encodePublicEmailActionToken } = await import('@brigid/beacon-shared-types');
+      const token = encodePublicEmailActionToken({
+        action: 'unsubscribe',
+        subscriptionId: params.subscriptionId,
+        vaultAddress: params.vaultAddress,
+        email: params.to,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }, config.publicEmailLinkSecret);
+      unsubscribeUrl = `${vaultUrl}?unsubscribeSmsToken=${encodeURIComponent(token)}`;
+    }
+
+    const shortAddr = `${params.vaultAddress.slice(0, 6)}...${params.vaultAddress.slice(-4)}`;
+    const kindLabels = params.eventKinds.map((k) => k.replace(/_/g, ' ')).join(', ');
+    const content = [
+      `Beacon alerts active for vault ${shortAddr}.`,
+      `Tracking: ${kindLabels}.`,
+      unsubscribeUrl ? `Stop alerts: ${unsubscribeUrl}` : '',
+    ].filter(Boolean).join(' ');
+
+    const response = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': config.brevoApiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: config.smsSenderName,
+        recipient: params.to,
+        content,
+        type: 'transactional',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Brevo SMS API ${response.status}: ${await response.text()}`);
+    }
+
+    return { deliveryMode: 'brevo' as const };
+  }
+
   return {
     prisma,
     config,
@@ -448,6 +512,7 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     buildTokenAnalytics,
     sendManagedTelegramMessage,
     sendPublicConfirmationEmail,
+    sendPublicWelcomeSms,
     buildTelegramConnectLink(params: { ownerAddress: string; label: string; sessionTokenHash: string; sessionExpiresAt: Date }) {
       const expiresAt = new Date(Math.min(Date.now() + TELEGRAM_LINK_TTL_MS, params.sessionExpiresAt.getTime())).toISOString();
       const startToken = encodeTelegramLinkToken(config, {
