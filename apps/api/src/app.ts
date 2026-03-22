@@ -10,7 +10,6 @@ import type { ChainProvider } from './context.js';
 import { registerErrorHandling } from './errors.js';
 import { registerHealthAnalyticsRoutes } from './routes/health-analytics.js';
 import { registerPublicEmailRoutes } from './routes/public-email.js';
-import { registerPublicSmsRoutes } from './routes/public-sms.js';
 import { registerOwnerRoutes } from './routes/owner.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
 import { registerVaultRoutes } from './routes/vaults.js';
@@ -57,7 +56,6 @@ export function buildApp(
 
   void registerHealthAnalyticsRoutes(app, ctx);
   void registerPublicEmailRoutes(app, ctx);
-  void registerPublicSmsRoutes(app, ctx);
   void registerOwnerRoutes(app, ctx);
   void registerIntegrationRoutes(app, ctx);
   void registerVaultRoutes(app, ctx);

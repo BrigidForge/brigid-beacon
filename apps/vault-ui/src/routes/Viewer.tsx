@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { NormalizedEvent, VaultMetadata, VaultStatus } from '@brigid/beacon-shared-types';
-import { fetchVaultBundle, createPublicEmailSubscription, createPublicSmsSubscription, unsubscribePublicSmsSubscription } from '../lib/api';
+import { fetchVaultBundle, createPublicEmailSubscription } from '../lib/api';
 import {
   formatTokenAmount,
   formatUnixSeconds,
@@ -241,7 +241,7 @@ function ActivityTab({ events }: { events: NormalizedEvent[] }) {
 
 /* ── Notifications tab ────────────────────────────────────────── */
 
-const ALL_EMAIL_EVENT_KINDS = [
+const ALL_EVENT_KINDS = [
   'vault_funded',
   'protected_withdrawal_requested',
   'excess_withdrawal_requested',
@@ -250,171 +250,101 @@ const ALL_EMAIL_EVENT_KINDS = [
   'request_expired',
 ];
 
-const SMS_EVENT_KINDS_DEFAULT = [
-  'protected_withdrawal_requested',
-  'excess_withdrawal_requested',
-  'withdrawal_executed',
-  'request_expired',
-];
-
-const SMS_EVENT_KINDS_ALL = [
-  'protected_withdrawal_requested',
-  'excess_withdrawal_requested',
-  'withdrawal_executed',
-  'request_expired',
-  'vault_funded',
-  'excess_deposited',
-];
-
 function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
   const [email, setEmail] = useState('');
-  const [emailSelected, setEmailSelected] = useState<string[]>(ALL_EMAIL_EVENT_KINDS);
-  const [emailStatus, setEmailStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [emailMessage, setEmailMessage] = useState('');
+  const [selected, setSelected] = useState<string[]>(ALL_EVENT_KINDS);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
 
-  const [phone, setPhone] = useState('');
-  const [smsSelected, setSmsSelected] = useState<string[]>(SMS_EVENT_KINDS_DEFAULT);
-  const [smsStatus, setSmsStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [smsMessage, setSmsMessage] = useState('');
-
-  // Handle unsubscribeSmsToken in URL
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('unsubscribeSmsToken');
-    if (!token) return;
-    setSmsStatus('loading');
-    unsubscribePublicSmsSubscription(token)
-      .then(() => { setSmsStatus('success'); setSmsMessage('You have been unsubscribed from SMS alerts for this vault.'); })
-      .catch((err: unknown) => { setSmsStatus('error'); setSmsMessage(err instanceof Error ? err.message : 'Unsubscribe failed.'); });
-  }, []);
-
-  function toggleEmail(kind: string) {
-    setEmailSelected((prev) => prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind]);
+  function toggle(kind: string) {
+    setSelected((prev) =>
+      prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind],
+    );
   }
 
-  function toggleSms(kind: string) {
-    setSmsSelected((prev) => prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind]);
-  }
-
-  async function handleEmailSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || emailSelected.length === 0) return;
-    setEmailStatus('loading');
+    if (!email.trim() || selected.length === 0) return;
+    setStatus('loading');
     try {
-      const result = await createPublicEmailSubscription({ vaultAddress, email: email.trim(), eventKinds: emailSelected });
-      setEmailStatus('success');
-      setEmailMessage(result.message);
+      const result = await createPublicEmailSubscription({
+        vaultAddress,
+        email: email.trim(),
+        eventKinds: selected,
+      });
+      setStatus('success');
+      setMessage(result.message);
     } catch (err) {
-      setEmailStatus('error');
-      setEmailMessage(err instanceof Error ? err.message : 'Subscription failed.');
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Subscription failed.');
     }
   }
 
-  async function handleSmsSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!phone.trim() || smsSelected.length === 0) return;
-    setSmsStatus('loading');
-    try {
-      const result = await createPublicSmsSubscription({ vaultAddress, phone: phone.trim(), eventKinds: smsSelected });
-      setSmsStatus('success');
-      setSmsMessage(result.message);
-    } catch (err) {
-      setSmsStatus('error');
-      setSmsMessage(err instanceof Error ? err.message : 'Subscription failed.');
-    }
+  if (status === 'success') {
+    return (
+      <div className="rounded-[2rem] border border-emerald-300/20 bg-emerald-300/10 p-8">
+        <p className="text-sm uppercase tracking-widest text-emerald-300/70">Subscribed</p>
+        <p className="mt-2 text-slate-100">{message}</p>
+        <button
+          type="button"
+          onClick={() => { setStatus('idle'); setMessage(''); setEmail(''); }}
+          className="mt-4 rounded-2xl border border-white/10 px-4 py-2 text-sm text-white"
+        >
+          Add another
+        </button>
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Email alerts */}
-      <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
-        <p className="text-xs uppercase tracking-widest text-slate-400">Email Alerts</p>
-        <p className="mt-2 text-sm text-slate-400">
-          Receive email notifications when vault events occur. Check your inbox to confirm.
-        </p>
+    <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
+      <p className="text-xs uppercase tracking-widest text-slate-400">Email Alerts</p>
+      <p className="mt-2 text-sm text-slate-400">
+        Receive email notifications when vault events occur. Check your inbox to confirm.
+      </p>
 
-        {emailStatus === 'success' ? (
-          <div className="mt-6 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-5">
-            <p className="text-sm text-emerald-100">{emailMessage}</p>
-            <button type="button" onClick={() => { setEmailStatus('idle'); setEmailMessage(''); setEmail(''); }}
-              className="mt-3 rounded-2xl border border-white/10 px-4 py-2 text-sm text-white">
-              Add another
-            </button>
+      <form onSubmit={(e) => { void handleSubmit(e); }} className="mt-6 flex flex-col gap-5">
+        <div>
+          <label htmlFor="notify-email" className="block text-sm text-slate-300">Email address</label>
+          <input
+            id="notify-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/20"
+          />
+        </div>
+
+        <div>
+          <p className="mb-3 text-sm text-slate-300">Notify me about</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ALL_EVENT_KINDS.map((kind) => (
+              <label key={kind} className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-2.5 transition hover:border-white/20">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(kind)}
+                  onChange={() => toggle(kind)}
+                  className="accent-amber-300"
+                />
+                <span className="text-sm text-slate-300">{EVENT_LABELS[kind] ?? kind}</span>
+              </label>
+            ))}
           </div>
-        ) : (
-          <form onSubmit={(e) => { void handleEmailSubmit(e); }} className="mt-6 flex flex-col gap-5">
-            <div>
-              <label htmlFor="notify-email" className="block text-sm text-slate-300">Email address</label>
-              <input id="notify-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/20" />
-            </div>
-            <div>
-              <p className="mb-3 text-sm text-slate-300">Notify me about</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {ALL_EMAIL_EVENT_KINDS.map((kind) => (
-                  <label key={kind} className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-2.5 transition hover:border-white/20">
-                    <input type="checkbox" checked={emailSelected.includes(kind)} onChange={() => toggleEmail(kind)} className="accent-amber-300" />
-                    <span className="text-sm text-slate-300">{EVENT_LABELS[kind] ?? kind}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            {emailStatus === 'error' && (
-              <p className="rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">{emailMessage}</p>
-            )}
-            <button type="submit" disabled={!email.trim() || emailSelected.length === 0 || emailStatus === 'loading'}
-              className="rounded-2xl bg-amber-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">
-              {emailStatus === 'loading' ? 'Subscribing…' : 'Subscribe to alerts'}
-            </button>
-          </form>
-        )}
-      </div>
+        </div>
 
-      {/* SMS alerts */}
-      <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
-        <p className="text-xs uppercase tracking-widest text-slate-400">SMS Alerts</p>
-        <p className="mt-2 text-sm text-slate-400">
-          Receive text message notifications. Enter your number in international format (e.g. +14155552671).
-        </p>
-
-        {smsStatus === 'success' ? (
-          <div className="mt-6 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-5">
-            <p className="text-sm text-emerald-100">{smsMessage}</p>
-            <button type="button" onClick={() => { setSmsStatus('idle'); setSmsMessage(''); setPhone(''); }}
-              className="mt-3 rounded-2xl border border-white/10 px-4 py-2 text-sm text-white">
-              Add another
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={(e) => { void handleSmsSubmit(e); }} className="mt-6 flex flex-col gap-5">
-            <div>
-              <label htmlFor="notify-phone" className="block text-sm text-slate-300">Phone number</label>
-              <input id="notify-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                placeholder="+14155552671"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-300/60 focus:ring-2 focus:ring-sky-300/20" />
-            </div>
-            <div>
-              <p className="mb-3 text-sm text-slate-300">Notify me about</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {SMS_EVENT_KINDS_ALL.map((kind) => (
-                  <label key={kind} className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-4 py-2.5 transition hover:border-white/20">
-                    <input type="checkbox" checked={smsSelected.includes(kind)} onChange={() => toggleSms(kind)} className="accent-sky-300" />
-                    <span className="text-sm text-slate-300">{EVENT_LABELS[kind] ?? kind}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            {smsStatus === 'error' && (
-              <p className="rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">{smsMessage}</p>
-            )}
-            <button type="submit" disabled={!phone.trim() || smsSelected.length === 0 || smsStatus === 'loading'}
-              className="rounded-2xl bg-sky-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-50">
-              {smsStatus === 'loading' ? 'Subscribing…' : 'Subscribe to SMS alerts'}
-            </button>
-          </form>
+        {status === 'error' && (
+          <p className="rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">{message}</p>
         )}
-      </div>
+
+        <button
+          type="submit"
+          disabled={!email.trim() || selected.length === 0 || status === 'loading'}
+          className="rounded-2xl bg-amber-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {status === 'loading' ? 'Subscribing…' : 'Subscribe to alerts'}
+        </button>
+      </form>
     </div>
   );
 }

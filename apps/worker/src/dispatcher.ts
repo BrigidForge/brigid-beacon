@@ -10,7 +10,6 @@ import { getProviders, formatNotification } from './notifications/index.js';
 import type { DispatcheableEvent } from './notifications/types.js';
 import { sendSubscriptionNotification } from './subscription-notifications.js';
 import { sendPublicEventEmail } from './public-email-notifications.js';
-import { sendPublicEventSms } from './sms-notifications.js';
 
 const DISPATCHABLE_KINDS = new Set([
   'vault_created',
@@ -37,12 +36,6 @@ const PUBLIC_EMAIL_KINDS = new Set([
   'request_expired',
 ]);
 
-const PUBLIC_SMS_KINDS = new Set([
-  'protected_withdrawal_requested',
-  'excess_withdrawal_requested',
-  'withdrawal_executed',
-  'request_expired',
-]);
 
 type DispatcherRow = {
   id: string;
@@ -67,10 +60,9 @@ type DispatcherDependencies = {
 function hasSubscriptionTargets(
   subscriptionCount: number,
   publicSubscriptionCount: number,
-  publicSmsCount: number,
   providerCount: number,
 ): boolean {
-  if (subscriptionCount > 0 || publicSubscriptionCount > 0 || publicSmsCount > 0) {
+  if (subscriptionCount > 0 || publicSubscriptionCount > 0) {
     return true;
   }
 
@@ -81,14 +73,6 @@ function isMissingPublicEmailTableError(error: unknown): boolean {
   return (
     error instanceof Error &&
     (/PublicEmailSubscription/.test(error.message) || /PublicEmailDelivery/.test(error.message)) &&
-    /does not exist/.test(error.message)
-  );
-}
-
-function isMissingPublicSmsTableError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    (/PublicSmsSubscription/.test(error.message) || /PublicSmsDelivery/.test(error.message)) &&
     /does not exist/.test(error.message)
   );
 }
@@ -114,55 +98,6 @@ async function countActivePublicEmailSubscriptions(prismaClient: typeof prisma):
       error: error instanceof Error ? error.message : String(error),
     });
     return 0;
-  }
-}
-
-async function countActivePublicSmsSubscriptions(prismaClient: typeof prisma): Promise<number> {
-  try {
-    return await prismaClient.publicSmsSubscription.count({
-      where: {
-        disabledAt: null,
-        follower: { unsubscribedAt: null },
-      },
-    });
-  } catch (error) {
-    if (!isMissingPublicSmsTableError(error)) throw error;
-    logger.warn('Public SMS subscription table unavailable during dispatcher count', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return 0;
-  }
-}
-
-async function findMatchingPublicSmsSubscriptions(
-  prismaClient: typeof prisma,
-  vaultAddress: string,
-  kind: string,
-) {
-  if (!PUBLIC_SMS_KINDS.has(kind)) return [];
-
-  try {
-    const subscriptions = await prismaClient.publicSmsSubscription.findMany({
-      where: {
-        vaultAddress,
-        disabledAt: null,
-        follower: { unsubscribedAt: null },
-      },
-      include: {
-        follower: { select: { phone: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    return subscriptions.filter((s) => subscriptionMatchesKind(s.eventKindsJson, kind));
-  } catch (error) {
-    if (!isMissingPublicSmsTableError(error)) throw error;
-    logger.warn('Public SMS subscription table unavailable during dispatcher query', {
-      vaultAddress,
-      kind,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return [];
   }
 }
 
@@ -300,14 +235,13 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
   const providers = deps.providers ?? getProviders();
   const sendSubscription = deps.sendSubscription ?? sendSubscriptionNotification;
   if (providers.length === 0) {
-    const [activeSubscriptions, activePublicSubscriptions, activePublicSmsSubscriptions] = await Promise.all([
+    const [activeSubscriptions, activePublicSubscriptions] = await Promise.all([
       prismaClient.notificationSubscription.count({
         where: { disabledAt: null, destination: { disabledAt: null } },
       }),
       countActivePublicEmailSubscriptions(prismaClient),
-      countActivePublicSmsSubscriptions(prismaClient),
     ]);
-    if (activeSubscriptions === 0 && activePublicSubscriptions === 0 && activePublicSmsSubscriptions === 0) {
+    if (activeSubscriptions === 0 && activePublicSubscriptions === 0) {
       return { processed: 0, sent: 0, errors: 0 };
     }
   }
@@ -370,12 +304,6 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
       row.vaultAddress,
       row.kind,
     );
-    const matchingPublicSmsSubscriptions = await findMatchingPublicSmsSubscriptions(
-      prismaClient,
-      row.vaultAddress,
-      row.kind,
-    );
-
     let allOk = true;
     if (matchingSubscriptions.length > 0) {
       for (const subscription of matchingSubscriptions) {
@@ -508,71 +436,6 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
       }
     }
 
-    if (matchingPublicSmsSubscriptions.length > 0) {
-      for (const subscription of matchingPublicSmsSubscriptions) {
-        const attemptAt = new Date();
-        const existing = await prismaClient.publicSmsDelivery.upsert({
-          where: {
-            beaconEventId_publicSubscriptionId: {
-              beaconEventId: event.id,
-              publicSubscriptionId: subscription.id,
-            },
-          },
-          update: {},
-          create: {
-            beaconEventId: event.id,
-            publicSubscriptionId: subscription.id,
-            status: 'pending',
-          },
-        });
-
-        try {
-          const result = await sendPublicEventSms(subscription, event, formatted);
-          await prismaClient.publicSmsDelivery.update({
-            where: {
-              beaconEventId_publicSubscriptionId: {
-                beaconEventId: event.id,
-                publicSubscriptionId: subscription.id,
-              },
-            },
-            data: {
-              status: 'sent',
-              providerMessageId: result.providerMessageId,
-              attemptCount: existing.attemptCount + 1,
-              lastAttemptAt: attemptAt,
-              deliveredAt: attemptAt,
-              errorMessage: null,
-            },
-          });
-          sent++;
-        } catch (err) {
-          allOk = false;
-          errors++;
-          await prismaClient.publicSmsDelivery.update({
-            where: {
-              beaconEventId_publicSubscriptionId: {
-                beaconEventId: event.id,
-                publicSubscriptionId: subscription.id,
-              },
-            },
-            data: {
-              status: 'failed',
-              attemptCount: existing.attemptCount + 1,
-              lastAttemptAt: attemptAt,
-              errorMessage: err instanceof Error ? err.message : String(err),
-            },
-          });
-          logger.error('Dispatcher public SMS delivery error', {
-            eventId: event.id,
-            kind: event.kind,
-            publicSubscriptionId: subscription.id,
-            phone: subscription.follower.phone,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-    }
-
     if (
       config.globalNotificationFallbackEnabled &&
       matchingSubscriptions.length === 0 &&
@@ -601,7 +464,6 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
       hasSubscriptionTargets(
         matchingSubscriptions.length,
         matchingPublicEmailSubscriptions.length,
-        matchingPublicSmsSubscriptions.length,
         providers.length,
       )
     ) {
@@ -612,7 +474,6 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
     } else if (
       matchingSubscriptions.length === 0 &&
       matchingPublicEmailSubscriptions.length === 0 &&
-      matchingPublicSmsSubscriptions.length === 0 &&
       (!config.globalNotificationFallbackEnabled || providers.length === 0)
     ) {
       await prismaClient.beaconEvent.update({

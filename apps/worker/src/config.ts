@@ -54,7 +54,6 @@ export const config = {
   publicAppBaseUrl: optionalString('PUBLIC_APP_BASE_URL') ?? optionalString('VITE_API_BASE_URL') ?? 'http://localhost:5174',
   brevoApiKey: optionalString('BREVO_API_KEY'),
   sesFromEmail: optionalString('SES_FROM_EMAIL') ?? 'beacon-notifications@brigidforge.com',
-  smsSenderName: optionalString('SMS_SENDER_NAME') ?? 'BEACONALERT',
   publicEmailLinkSecret: optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET'),
   publicEmailSubscriptionRetentionDays: optionalEnv('PUBLIC_EMAIL_SUBSCRIPTION_RETENTION_DAYS', 30),
 } as const;

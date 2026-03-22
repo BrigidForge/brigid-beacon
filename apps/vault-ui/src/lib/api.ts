@@ -254,30 +254,6 @@ export type TokenAnalyticsDetailResponse = TokenAnalyticsSummary & {
   }>;
 };
 
-export type PublicSmsSubscriptionResponse = {
-  subscribed: boolean;
-  vaultAddress: string;
-  phone: string;
-  eventKinds: string[];
-  message: string;
-};
-
-export type PublicSmsUnsubscribeResponse = {
-  unsubscribed: boolean;
-  phone: string;
-  vaultAddress: string;
-  unsubscribedAt: string;
-};
-
-export type PublicSmsSubscriptionStatusResponse = {
-  vaultAddress: string;
-  phone: string;
-  subscribed: boolean;
-  disabled: boolean;
-  eventKinds: string[];
-  disabledAt?: string | null;
-};
-
 export type PublicEmailSubscriptionResponse = {
   status: 'confirmed' | 'pending_confirmation';
   vaultAddress: string;
@@ -536,20 +512,3 @@ export async function fetchManagedPublicEmailSubscriptionStatus(
   return getJson<PublicEmailSubscriptionStatusResponse>(`/api/v1/public/email-subscriptions/manage?${params.toString()}`);
 }
 
-export async function createPublicSmsSubscription(input: {
-  vaultAddress: string;
-  phone: string;
-  eventKinds: string[];
-}): Promise<PublicSmsSubscriptionResponse> {
-  return sendJson<PublicSmsSubscriptionResponse>('/api/v1/public/sms-subscriptions', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-}
-
-export async function unsubscribePublicSmsSubscription(token: string): Promise<PublicSmsUnsubscribeResponse> {
-  return sendJson<PublicSmsUnsubscribeResponse>('/api/v1/public/sms-subscriptions/unsubscribe', {
-    method: 'POST',
-    body: JSON.stringify({ token }),
-  });
-}
