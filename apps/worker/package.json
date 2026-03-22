@@ -15,7 +15,6 @@
     "schema": "../../prisma/schema.prisma"
   },
   "dependencies": {
-    "@aws-sdk/client-sesv2": "^3.967.0",
     "@brigid/beacon-contracts-abi": "*",
     "@brigid/beacon-shared-types": "*",
     "@brigid/beacon-status-engine": "*",

@@ -1,4 +1,3 @@
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { encodePublicEmailActionToken } from '@brigid/beacon-shared-types';
 import { config } from './config.js';
 import type { DispatcheableEvent, FormattedNotification } from './notifications/types.js';
@@ -11,21 +10,8 @@ type PublicSubscriptionRow = {
   unsubscribeTokenHash: string;
 };
 
-let sesClientSingleton: SESv2Client | null | undefined;
-
-function getSesClient(): SESv2Client | null {
-  if (sesClientSingleton !== undefined) {
-    return sesClientSingleton;
-  }
-
-  if (!config.sesFromEmail) {
-    sesClientSingleton = null;
-    return sesClientSingleton;
-  }
-
-  sesClientSingleton = new SESv2Client({ region: config.awsRegion });
-  return sesClientSingleton;
-}
+const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
+const BREVO_SENDER_NAME = 'BRIGID BEACON NOTIFICATIONS';
 
 function buildVaultUrl(vaultAddress: string): string {
   return `${config.publicAppBaseUrl.replace(/\/$/, '')}/vault/${vaultAddress}`;
@@ -97,35 +83,34 @@ export async function sendPublicEventEmail(
   event: DispatcheableEvent,
   formatted: FormattedNotification,
 ): Promise<{ providerMessageId: string | null }> {
-  const sesClient = getSesClient();
-  if (!sesClient || !config.sesFromEmail) {
-    throw new Error('SES public email delivery is not configured for the Beacon worker.');
+  if (!config.brevoApiKey || !config.sesFromEmail) {
+    throw new Error('Brevo public email delivery is not configured for the Beacon worker.');
   }
 
   const body = buildEventEmailBody({ event, formatted, subscription });
-  const response = await sesClient.send(new SendEmailCommand({
-    FromEmailAddress: config.sesFromEmail,
-    Destination: {
-      ToAddresses: [subscription.follower.email],
-    },
-    Content: {
-      Simple: {
-        Subject: {
-          Data: `Brigid Beacon: ${formatted.title}`,
-        },
-        Body: {
-          Text: {
-            Data: body.text,
-          },
-          Html: {
-            Data: body.html,
-          },
-        },
-      },
-    },
-  }));
 
+  const response = await fetch(BREVO_SEND_URL, {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': config.brevoApiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: BREVO_SENDER_NAME, email: config.sesFromEmail },
+      to: [{ email: subscription.follower.email }],
+      subject: `Brigid Beacon: ${formatted.title}`,
+      textContent: body.text,
+      htmlContent: body.html,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Brevo API ${response.status}: ${await response.text()}`);
+  }
+
+  const data = await response.json() as { messageId?: string };
   return {
-    providerMessageId: response.MessageId ?? null,
+    providerMessageId: data.messageId ?? null,
   };
 }

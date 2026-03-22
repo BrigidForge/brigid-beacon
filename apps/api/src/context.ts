@@ -1,5 +1,4 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { JsonRpcProvider, getAddress, verifyMessage } from 'ethers';
 import type {
@@ -221,16 +220,8 @@ export function decodeTelegramLinkToken(config: ApiConfig, token: string): Teleg
   }
 }
 
-let sesClientSingleton: SESv2Client | null | undefined;
-function getSesClient(config: ApiConfig): SESv2Client | null {
-  if (sesClientSingleton !== undefined) return sesClientSingleton;
-  if (!config.publicEmailFromAddress) {
-    sesClientSingleton = null;
-    return sesClientSingleton;
-  }
-  sesClientSingleton = new SESv2Client({ region: config.sesRegion });
-  return sesClientSingleton;
-}
+const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
+const BREVO_SENDER_NAME = 'BRIGID BEACON NOTIFICATIONS';
 
 type VaultRow = {
   id: string;
@@ -389,8 +380,7 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     unsubscribeToken: string;
     expiresAt: string;
   }) {
-    const client = getSesClient(config);
-    if (!client || !config.publicEmailFromAddress) {
+    if (!config.brevoApiKey || !config.publicEmailFromAddress) {
       return { deliveryMode: 'preview' as const };
     }
 
@@ -401,44 +391,50 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
       ? `Unsubscribe link: ${params.unsubscribeUrl}`
       : `Unsubscribe token: ${params.unsubscribeToken}`;
 
-    await client.send(new SendEmailCommand({
-      FromEmailAddress: config.publicEmailFromAddress,
-      Destination: { ToAddresses: [params.to] },
-      Content: {
-        Simple: {
-          Subject: { Data: 'Confirm your Brigid Beacon vault alerts' },
-          Body: {
-            Text: {
-              Data: [
-                'You requested public Brigid Beacon email alerts.',
-                '',
-                `Vault: ${params.vaultAddress}`,
-                'Events:',
-                ...params.eventKinds.map((kind) => `- ${kind}`),
-                '',
-                confirmLine,
-                '',
-                `Confirmation expires at: ${params.expiresAt}`,
-                '',
-                unsubscribeLine,
-              ].join('\n'),
-            },
-            Html: {
-              Data: [
-                '<p>You requested public Brigid Beacon email alerts.</p>',
-                `<p><strong>Vault:</strong> ${params.vaultAddress}</p>`,
-                `<p><strong>Events:</strong><br/>${params.eventKinds.join('<br/>')}</p>`,
-                params.confirmUrl ? `<p><a href="${params.confirmUrl}">Confirm your subscription</a></p>` : '',
-                `<p><strong>Confirmation expires at:</strong> ${params.expiresAt}</p>`,
-                params.unsubscribeUrl ? `<p><a href="${params.unsubscribeUrl}">Unsubscribe</a></p>` : '',
-              ].join(''),
-            },
-          },
-        },
-      },
-    }));
+    const textContent = [
+      'You requested public Brigid Beacon email alerts.',
+      '',
+      `Vault: ${params.vaultAddress}`,
+      'Events:',
+      ...params.eventKinds.map((kind) => `- ${kind}`),
+      '',
+      confirmLine,
+      '',
+      `Confirmation expires at: ${params.expiresAt}`,
+      '',
+      unsubscribeLine,
+    ].join('\n');
 
-    return { deliveryMode: 'ses' as const };
+    const htmlContent = [
+      '<p>You requested public Brigid Beacon email alerts.</p>',
+      `<p><strong>Vault:</strong> ${params.vaultAddress}</p>`,
+      `<p><strong>Events:</strong><br/>${params.eventKinds.join('<br/>')}</p>`,
+      params.confirmUrl ? `<p><a href="${params.confirmUrl}">Confirm your subscription</a></p>` : '',
+      `<p><strong>Confirmation expires at:</strong> ${params.expiresAt}</p>`,
+      params.unsubscribeUrl ? `<p><a href="${params.unsubscribeUrl}">Unsubscribe</a></p>` : '',
+    ].join('');
+
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': config.brevoApiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: BREVO_SENDER_NAME, email: config.publicEmailFromAddress },
+        to: [{ email: params.to }],
+        subject: 'Confirm your Brigid Beacon vault alerts',
+        textContent,
+        htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Brevo API ${response.status}: ${await response.text()}`);
+    }
+
+    return { deliveryMode: 'brevo' as const };
   }
 
   return {

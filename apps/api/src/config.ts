@@ -50,7 +50,7 @@ export function getApiConfig() {
     telegramWebhookSecret: optionalString('TELEGRAM_WEBHOOK_SECRET') ?? null,
     publicAppBaseUrl: optionalString('PUBLIC_APP_BASE_URL') ?? optionalString('VITE_API_BASE_URL') ?? null,
     publicEmailLinkSecret: optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET') ?? null,
-    sesRegion: optionalString('AWS_REGION') ?? 'us-east-2',
+    brevoApiKey: optionalString('BREVO_API_KEY') ?? null,
     publicEmailFromAddress: optionalString('SES_FROM_EMAIL') ?? 'beacon-notifications@brigidforge.com',
   } as const;
 }

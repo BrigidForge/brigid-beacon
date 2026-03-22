@@ -52,7 +52,7 @@ export const config = {
   globalNotificationFallbackEnabled: optionalBoolean('ENABLE_GLOBAL_NOTIFICATION_FALLBACK', false),
   explorerBaseUrl: optionalString('EXPLORER_BASE_URL') ?? 'https://testnet.bscscan.com',
   publicAppBaseUrl: optionalString('PUBLIC_APP_BASE_URL') ?? optionalString('VITE_API_BASE_URL') ?? 'http://localhost:5174',
-  awsRegion: optionalString('AWS_REGION') ?? 'us-east-2',
+  brevoApiKey: optionalString('BREVO_API_KEY'),
   sesFromEmail: optionalString('SES_FROM_EMAIL') ?? 'beacon-notifications@brigidforge.com',
   publicEmailLinkSecret: optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET'),
   publicEmailSubscriptionRetentionDays: optionalEnv('PUBLIC_EMAIL_SUBSCRIPTION_RETENTION_DAYS', 30),
