@@ -54,7 +54,28 @@ export async function registerVaultRoutes(app: FastifyInstance, ctx: ReturnTypeC
       orderBy: [{ blockNumber: 'desc' }, { logIndex: 'desc' }],
       take: limit,
     });
-    const response: VaultEventsResponse = { events: rows.reverse().map(toNormalizedEvent) };
+    const purposeHashes = Array.from(new Set(
+      rows
+        .map((row) => {
+          const payload = row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+            ? (row.payload as Record<string, unknown>)
+            : null;
+          return typeof payload?.purposeHash === 'string' ? payload.purposeHash.toLowerCase() : null;
+        })
+        .filter((value): value is string => Boolean(value)),
+    ));
+
+    const purposes = purposeHashes.length > 0
+      ? await ctx.prisma.withdrawalPurpose.findMany({
+          where: { vaultAddress: address, purposeHash: { in: purposeHashes } },
+          select: { purposeHash: true, purposeText: true },
+        })
+      : [];
+
+    const response: VaultEventsResponse = {
+      events: rows.reverse().map(toNormalizedEvent),
+      purposeTexts: Object.fromEntries(purposes.map((purpose) => [purpose.purposeHash.toLowerCase(), purpose.purposeText])),
+    };
     return response;
   });
 

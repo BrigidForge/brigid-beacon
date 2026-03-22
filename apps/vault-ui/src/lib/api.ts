@@ -131,6 +131,13 @@ export type TelegramConnectResponse = {
   deepLinkUrl: string;
 };
 
+export type WithdrawalPurposeResponse = {
+  vaultAddress: string;
+  purposeHash: string;
+  purposeText: string;
+  updatedAt: string;
+};
+
 export type NotificationSubscriptionRecord = {
   id: string;
   vaultAddress: string;
@@ -298,6 +305,7 @@ export async function fetchVaultBundle(address: string): Promise<{
   metadata: VaultMetadata;
   status: VaultStatus;
   events: VaultEventsResponse['events'];
+  purposeTexts: VaultEventsResponse['purposeTexts'];
   proof: DeploymentProof;
 }> {
   const [metadata, status, eventsResponse, proof] = await Promise.all([
@@ -311,6 +319,7 @@ export async function fetchVaultBundle(address: string): Promise<{
     metadata,
     status,
     events: eventsResponse.events,
+    purposeTexts: eventsResponse.purposeTexts,
     proof,
   };
 }
@@ -419,6 +428,22 @@ export async function createTelegramConnectLink(
   });
 }
 
+export async function saveWithdrawalPurpose(input: {
+  sessionToken: string;
+  vaultAddress: string;
+  purposeHash: string;
+  purposeText: string;
+}): Promise<WithdrawalPurposeResponse> {
+  return sendJson<WithdrawalPurposeResponse>(`/api/v1/owner/vaults/${input.vaultAddress}/purposes`, {
+    method: 'POST',
+    headers: authHeaders(input.sessionToken),
+    body: JSON.stringify({
+      purposeHash: input.purposeHash,
+      purposeText: input.purposeText,
+    }),
+  });
+}
+
 export async function fetchSubscriptions(sessionToken: string, vaultAddress: string): Promise<SubscriptionListResponse> {
   return getJson<SubscriptionListResponse>(`/api/v1/owner/subscriptions?vaultAddress=${vaultAddress}`, authHeaders(sessionToken));
 }
@@ -511,4 +536,3 @@ export async function fetchManagedPublicEmailSubscriptionStatus(
   const params = new URLSearchParams({ token });
   return getJson<PublicEmailSubscriptionStatusResponse>(`/api/v1/public/email-subscriptions/manage?${params.toString()}`);
 }
-

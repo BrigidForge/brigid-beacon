@@ -16,6 +16,7 @@ interface VaultBundle {
   metadata: VaultMetadata;
   status: VaultStatus;
   events: NormalizedEvent[];
+  purposeTexts: Record<string, string>;
   proof: DeploymentProof;
 }
 
@@ -132,7 +133,7 @@ export function OperatorVaultWorkspace(props: {
     );
   }
 
-  const { metadata, status, events, proof } = bundle;
+  const { metadata, status, events, purposeTexts, proof } = bundle;
 
   return (
     <div className="space-y-8">
@@ -160,11 +161,12 @@ export function OperatorVaultWorkspace(props: {
           vaultAddress={metadata.address}
           indexedOwnerAddress={metadata.owner}
           events={events}
+          purposeTexts={purposeTexts}
           walletSession={walletSession}
           onRequireWallet={ensureWallet}
         />
       ) : activeTab === 'activity' ? (
-        <VaultActivityTab events={events} chainId={metadata.chainId} />
+        <VaultActivityTab events={events} purposeTexts={purposeTexts} chainId={metadata.chainId} />
       ) : (
         <OwnerSettings vaultAddress={metadata.address} indexedOwnerAddress={metadata.owner} walletSession={walletSession} />
       )}

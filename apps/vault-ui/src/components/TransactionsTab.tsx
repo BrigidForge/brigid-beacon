@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { NormalizedEvent } from '@brigid/beacon-shared-types';
 import { ethers } from 'ethers';
+import { getStoredOwnerSession, saveWithdrawalPurpose } from '../lib/api';
 import { formatDurationSeconds, formatTokenAmount, formatUnixSeconds, shortenAddress } from '../lib/format';
 import {
   clearWalletOpenTimer,
@@ -114,6 +115,7 @@ export function TransactionsTab(props: {
   vaultAddress: string;
   indexedOwnerAddress: string;
   events: NormalizedEvent[];
+  purposeTexts: Record<string, string>;
   walletSession: WalletSession | null;
   onRequireWallet: (kind?: WalletConnectionKind) => Promise<WalletSession>;
 }) {
@@ -142,6 +144,20 @@ export function TransactionsTab(props: {
   function clearWalletApprovalFlow() {
     clearWalletOpenTimer();
     setWalletApproveUrl(null);
+  }
+
+  async function persistPurposeText(purposeHash: string, purposeText: string) {
+    const storedSession = getStoredOwnerSession();
+    if (!storedSession || storedSession.ownerAddress.toLowerCase() !== props.indexedOwnerAddress.toLowerCase()) {
+      return;
+    }
+
+    await saveWithdrawalPurpose({
+      sessionToken: storedSession.sessionToken,
+      vaultAddress: props.vaultAddress,
+      purposeHash,
+      purposeText,
+    });
   }
 
   function restoreScrollPosition() {
@@ -206,8 +222,13 @@ export function TransactionsTab(props: {
 
   const walletConnected = props.walletSession != null;
   const walletMatchesOwner = props.walletSession?.address != null && props.walletSession.address.toLowerCase() === props.indexedOwnerAddress.toLowerCase();
+  const storedOwnerSession = getStoredOwnerSession();
+  const hasActiveBeaconSession =
+    storedOwnerSession != null &&
+    storedOwnerSession.ownerAddress.toLowerCase() === props.indexedOwnerAddress.toLowerCase() &&
+    Date.parse(storedOwnerSession.expiresAt) > Date.now();
 
-  const canRequest = snapshot != null && walletConnected && !pending && amountInput.trim().length > 0 && purposeInput.trim().length > 0;
+  const canRequest = snapshot != null && walletConnected && hasActiveBeaconSession && !pending && amountInput.trim().length > 0 && purposeInput.trim().length > 0;
   const requestButtonDisabled = !canRequest || busy || (() => { try { return ethers.parseUnits(amountInput || '0', 18) > selectedAvailable; } catch { return true; } })();
 
   async function ensureCorrectChain(connection: WalletSession): Promise<WalletSession> {
@@ -233,6 +254,7 @@ export function TransactionsTab(props: {
       connection = await ensureCorrectChain(connection);
       const purposeHash = ethers.id(purposeInput.trim());
       storePurpose(purposeHash, purposeInput.trim());
+      await persistPurposeText(purposeHash, purposeInput.trim()).catch(() => undefined);
       const txHashPromise = requestWithdrawalTx({
         vaultAddress: props.vaultAddress,
         signer: connection.signer,
@@ -295,9 +317,11 @@ export function TransactionsTab(props: {
   if (!snapshot) return null;
 
   const explorerBase = EXPLORERS[snapshot.chainId];
-  const requestPurposeText = latestRequest ? readStoredPurpose(latestRequest.purposeHash) : '';
-  const cancelButtonActive = walletMatchesOwner && state === 'cancel' && !busy;
-  const executeButtonActive = state === 'exec' && !busy && walletConnected;
+  const requestPurposeText = latestRequest
+    ? props.purposeTexts[latestRequest.purposeHash.toLowerCase()] ?? readStoredPurpose(latestRequest.purposeHash)
+    : '';
+  const cancelButtonActive = walletMatchesOwner && hasActiveBeaconSession && state === 'cancel' && !busy;
+  const executeButtonActive = hasActiveBeaconSession && state === 'exec' && !busy && walletConnected;
   const requestButtonActive = !requestButtonDisabled;
 
   return (
@@ -327,7 +351,7 @@ export function TransactionsTab(props: {
             <label className="rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-slate-200">
               <span className="block text-xs uppercase tracking-[0.22em] text-slate-400">Select Allocation</span>
               <DisabledWalletHint enabled={walletConnected} className="group relative mt-3 block">
-                <select value={withdrawalType} onChange={(e) => setWithdrawalType(e.target.value as 'protected' | 'excess')} disabled={!walletConnected || pending || busy}
+                <select value={withdrawalType} onChange={(e) => setWithdrawalType(e.target.value as 'protected' | 'excess')} disabled={!walletConnected || !hasActiveBeaconSession || pending || busy}
                   className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none">
                   <option value="protected">Vested Funds</option>
                   <option value="excess" disabled={!snapshot.excessSupported}>Surplus Funds</option>
@@ -337,7 +361,7 @@ export function TransactionsTab(props: {
             <label className="rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-slate-200">
               <span className="block text-xs uppercase tracking-[0.22em] text-slate-400">Amount</span>
               <DisabledWalletHint enabled={walletConnected} className="group relative mt-3 block">
-                <input value={amountInput} onChange={(e) => setAmountInput(e.target.value)} disabled={!walletConnected || pending || busy} placeholder="Enter withdrawal amount"
+                <input value={amountInput} onChange={(e) => setAmountInput(e.target.value)} disabled={!walletConnected || !hasActiveBeaconSession || pending || busy} placeholder="Enter withdrawal amount"
                   className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none" />
               </DisabledWalletHint>
               <span className="mt-2 block text-xs text-slate-400">Max: {formatTokenAmount(selectedAvailable.toString())} {snapshot.tokenSymbol}</span>
@@ -346,10 +370,24 @@ export function TransactionsTab(props: {
           <label className="mt-4 block rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-slate-200">
             <span className="block text-xs uppercase tracking-[0.22em] text-slate-400">Purpose Description</span>
             <DisabledWalletHint enabled={walletConnected} className="group relative mt-3 block">
-              <input value={purposeInput} onChange={(e) => setPurposeInput(e.target.value)} disabled={!walletConnected || pending || busy} placeholder="Required — describe withdrawal purpose"
+              <input value={purposeInput} onChange={(e) => setPurposeInput(e.target.value)} disabled={!walletConnected || !hasActiveBeaconSession || pending || busy} placeholder="Required — describe withdrawal purpose"
                 className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none" />
             </DisabledWalletHint>
           </label>
+          {!hasActiveBeaconSession ? (
+            <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-4 text-sm leading-6 text-amber-100">
+              <p className="font-medium text-white">Reconnect Beacon before using withdrawal controls.</p>
+              <p className="mt-2">
+                Beacon verification is required so the operator panel can store the withdrawal purpose as readable text and include it in shared activity history and notifications.
+              </p>
+              <p className="mt-2">
+                Once connected, that Beacon session stays active for 7 days of withdrawals. After it expires, you will be asked to reconnect Beacon before these controls become available again.
+              </p>
+              <p className="mt-2 text-amber-50/90">
+                Open the <span className="font-medium text-white">Beacon Notifications</span> tab to reconnect.
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-5 flex flex-wrap gap-3">
             <DisabledWalletHint enabled={walletConnected}>
@@ -359,13 +397,13 @@ export function TransactionsTab(props: {
               </button>
             </DisabledWalletHint>
             <DisabledWalletHint enabled={walletConnected && walletMatchesOwner}>
-              <button type="button" onClick={() => void handleCancelWithdrawal()} disabled={!walletMatchesOwner || state !== 'cancel' || busy}
+              <button type="button" onClick={() => void handleCancelWithdrawal()} disabled={!walletMatchesOwner || !hasActiveBeaconSession || state !== 'cancel' || busy}
                 className={`rounded-2xl border border-rose-500/60 bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-35 ${cancelButtonActive ? 'animate-pulse shadow-[0_0_28px_rgba(244,63,94,0.32)]' : ''}`}>
                 Cancel Withdrawal
               </button>
             </DisabledWalletHint>
             <DisabledWalletHint enabled={walletConnected}>
-              <button type="button" onClick={() => void handleExecuteWithdrawal()} disabled={state !== 'exec' || busy || !walletConnected}
+              <button type="button" onClick={() => void handleExecuteWithdrawal()} disabled={state !== 'exec' || busy || !walletConnected || !hasActiveBeaconSession}
                 className={`rounded-2xl border border-emerald-300/70 bg-emerald-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-35 ${executeButtonActive ? 'animate-pulse shadow-[0_0_28px_rgba(52,211,153,0.32)]' : ''}`}>
                 Execute Withdrawal
               </button>

@@ -2,9 +2,11 @@ import type { NormalizedEvent } from '@brigid/beacon-shared-types';
 import { formatIso, formatStateLabel, formatTokenAmount, shortenAddress, shortenHash } from '../lib/format';
 import { EXPLORERS } from '../lib/operatorVault';
 
-function summarizeEvent(event: NormalizedEvent): { title: string; detail: string; amount?: string; accent: string } {
+function summarizeEvent(event: NormalizedEvent, purposeTexts: Record<string, string>): { title: string; detail: string; amount?: string; accent: string } {
   const payload = (event.payload ?? {}) as unknown as Record<string, unknown>;
   const amount = typeof payload.amount === 'string' ? payload.amount : undefined;
+  const purposeHash = typeof payload.purposeHash === 'string' ? payload.purposeHash.toLowerCase() : '';
+  const purposeText = purposeHash ? purposeTexts[purposeHash] ?? '' : '';
 
   const accent = 'border-white/10 bg-white/5';
   switch (event.kind) {
@@ -13,15 +15,15 @@ function summarizeEvent(event: NormalizedEvent): { title: string; detail: string
     case 'vault_funded':
       return { title: 'Vault funded', detail: 'Protected vesting principal reached the vault.', amount, accent };
     case 'protected_withdrawal_requested':
-      return { title: 'Protected withdrawal requested', detail: 'A vested principal withdrawal entered the request flow.', amount, accent };
+      return { title: 'Protected withdrawal requested', detail: purposeText ? `Reason: ${purposeText}` : 'A vested principal withdrawal entered the request flow.', amount, accent };
     case 'excess_withdrawal_requested':
-      return { title: 'Excess withdrawal requested', detail: 'An excess balance withdrawal entered the request flow.', amount, accent };
+      return { title: 'Excess withdrawal requested', detail: purposeText ? `Reason: ${purposeText}` : 'An excess balance withdrawal entered the request flow.', amount, accent };
     case 'withdrawal_executed':
-      return { title: 'Withdrawal executed', detail: 'The pending request was executed on-chain.', amount, accent };
+      return { title: 'Withdrawal executed', detail: purposeText ? `Executed request: ${purposeText}` : 'The pending request was executed on-chain.', amount, accent };
     case 'withdrawal_canceled':
-      return { title: 'Withdrawal canceled', detail: 'The pending withdrawal request was canceled before execution.', amount, accent };
+      return { title: 'Withdrawal canceled', detail: purposeText ? `Canceled request: ${purposeText}` : 'The pending withdrawal request was canceled before execution.', amount, accent };
     case 'request_expired':
-      return { title: 'Withdrawal expired', detail: 'The execution window closed before the request was used.', amount, accent };
+      return { title: 'Withdrawal expired', detail: purposeText ? `Expired request: ${purposeText}` : 'The execution window closed before the request was used.', amount, accent };
     case 'excess_deposited':
       return { title: 'Excess deposited', detail: `Extra tokens arrived from ${shortenAddress(String(payload.from ?? 'unknown source'))}.`, amount, accent };
     default:
@@ -29,7 +31,7 @@ function summarizeEvent(event: NormalizedEvent): { title: string; detail: string
   }
 }
 
-export function VaultActivityTab(props: { events: NormalizedEvent[]; chainId: number }) {
+export function VaultActivityTab(props: { events: NormalizedEvent[]; purposeTexts: Record<string, string>; chainId: number }) {
   const explorerBase = EXPLORERS[props.chainId];
 
   return (
@@ -58,7 +60,7 @@ export function VaultActivityTab(props: { events: NormalizedEvent[]; chainId: nu
               .slice()
               .reverse()
               .map((event) => {
-                const summary = summarizeEvent(event);
+                const summary = summarizeEvent(event, props.purposeTexts);
                 return (
                   <div key={event.id} className={`rounded-3xl border p-4 ${summary.accent}`}>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

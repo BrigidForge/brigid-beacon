@@ -18,6 +18,7 @@ type VaultBundle = {
   metadata: VaultMetadata;
   status: VaultStatus;
   events: NormalizedEvent[];
+  purposeTexts: Record<string, string>;
 };
 
 const REFRESH_MS = 60_000;
@@ -78,7 +79,7 @@ export default function Viewer() {
     );
   }
 
-  const { metadata, status, events } = bundle;
+  const { metadata, status, events, purposeTexts } = bundle;
 
   return (
     <div className="flex flex-col gap-6">
@@ -124,7 +125,7 @@ export default function Viewer() {
 
       {/* Tab content */}
       {tab === 'status' && <StatusTab metadata={metadata} status={status} />}
-      {tab === 'activity' && <ActivityTab events={events} />}
+      {tab === 'activity' && <ActivityTab events={events} purposeTexts={purposeTexts} />}
       {tab === 'notifications' && <NotificationsTab vaultAddress={metadata.address} />}
     </div>
   );
@@ -206,7 +207,7 @@ const EVENT_COLOR: Record<string, string> = {
   request_expired: 'border-rose-300/20 bg-rose-300/10 text-rose-300',
 };
 
-function ActivityTab({ events }: { events: NormalizedEvent[] }) {
+function ActivityTab({ events, purposeTexts }: { events: NormalizedEvent[]; purposeTexts: Record<string, string> }) {
   if (events.length === 0) {
     return (
       <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 text-center text-slate-400">
@@ -217,7 +218,11 @@ function ActivityTab({ events }: { events: NormalizedEvent[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {[...events].reverse().map((event) => (
+      {[...events].reverse().map((event) => {
+        const payload = (event.payload ?? {}) as unknown as Record<string, unknown>;
+        const purposeHash = typeof payload.purposeHash === 'string' ? payload.purposeHash.toLowerCase() : '';
+        const purposeText = purposeHash ? purposeTexts[purposeHash] ?? '' : '';
+        return (
         <div key={event.id} className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className={`rounded-full border px-3 py-0.5 text-xs font-medium ${EVENT_COLOR[event.kind] ?? 'border-white/10 text-slate-300'}`}>
@@ -225,6 +230,7 @@ function ActivityTab({ events }: { events: NormalizedEvent[] }) {
             </span>
             <span className="text-xs text-slate-500">{formatUnixSeconds(event.timestamp)}</span>
           </div>
+          {purposeText ? <p className="mt-3 text-sm leading-6 text-slate-300">{purposeText}</p> : null}
           <a
             href={`https://bscscan.com/tx/${event.transactionHash}`}
             target="_blank"
@@ -234,7 +240,7 @@ function ActivityTab({ events }: { events: NormalizedEvent[] }) {
             {shortenHash(event.transactionHash)}
           </a>
         </div>
-      ))}
+      )})}
     </div>
   );
 }

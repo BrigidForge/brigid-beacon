@@ -171,6 +171,63 @@ function isWithdrawalRequestKind(kind: string): boolean {
   return kind === 'protected_withdrawal_requested' || kind === 'excess_withdrawal_requested';
 }
 
+async function enrichEventForNotification(prismaClient: typeof prisma, row: DispatcherRow, event: DispatcheableEvent): Promise<DispatcheableEvent> {
+  const purposeHash = getPayloadValue(row.payload, 'purposeHash');
+  const savedPurpose = purposeHash
+    ? await prismaClient.withdrawalPurpose.findUnique({
+        where: {
+          vaultAddress_purposeHash: {
+            vaultAddress: row.vaultAddress,
+            purposeHash: purposeHash.toLowerCase(),
+          },
+        },
+        select: { purposeText: true },
+      })
+    : null;
+
+  if (!TERMINAL_REQUEST_KINDS.has(row.kind)) {
+    return {
+      ...event,
+      payload: {
+        ...event.payload,
+        ...(savedPurpose?.purposeText ? { purposeText: savedPurpose.purposeText } : {}),
+      },
+    };
+  }
+
+  if (!purposeHash) {
+    return event;
+  }
+
+  const matchingRequests = await prismaClient.beaconEvent.findMany({
+    where: {
+      vaultAddress: row.vaultAddress,
+      kind: { in: ['protected_withdrawal_requested', 'excess_withdrawal_requested'] },
+      blockNumber: { lte: row.blockNumber },
+    },
+    orderBy: [{ blockNumber: 'desc' }, { logIndex: 'desc' }],
+    take: 20,
+  });
+
+  const matchingRequest = matchingRequests.find((candidate) => getPayloadValue(candidate.payload, 'purposeHash') === purposeHash);
+  if (!matchingRequest) {
+    return event;
+  }
+
+  const requestPayload = (matchingRequest.payload as Record<string, unknown>) ?? {};
+  return {
+    ...event,
+    payload: {
+      ...event.payload,
+      ...(savedPurpose?.purposeText ? { purposeText: savedPurpose.purposeText } : {}),
+      requestType: matchingRequest.kind === 'protected_withdrawal_requested' ? 'protected' : 'excess',
+      requestedAt: getPayloadValue(requestPayload, 'requestedAt') ?? undefined,
+      executableAt: getPayloadValue(requestPayload, 'executableAt') ?? undefined,
+      expiresAt: getPayloadValue(requestPayload, 'expiresAt') ?? undefined,
+    },
+  };
+}
+
 async function getRequestDispatchDecision(
   prismaClient: typeof prisma,
   row: DispatcherRow,
@@ -281,8 +338,8 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
       continue;
     }
 
-    const event = toDispatcheable(row);
-    const formatted = formatNotification(event, config.explorerBaseUrl);
+    const event = await enrichEventForNotification(prismaClient, row, toDispatcheable(row));
+    const formatted = formatNotification(event, config.explorerBaseUrl, config.publicAppBaseUrl);
     const subscriptions = await prismaClient.notificationSubscription.findMany({
       where: {
         vaultAddress: row.vaultAddress,

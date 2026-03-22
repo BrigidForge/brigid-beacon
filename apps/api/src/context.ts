@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { JsonRpcProvider, getAddress, verifyMessage } from 'ethers';
 import type {
@@ -37,11 +37,12 @@ export const DESTINATION_KINDS = new Set(['telegram', 'discord_webhook', 'webhoo
 export type ChainProvider = Pick<JsonRpcProvider, 'getBlockNumber' | 'getBlock'>;
 
 type TelegramLinkPayload = {
-  ownerAddress: string;
-  label: string;
-  sessionTokenHash: string;
+  destinationId: string;
   expiresAt: string;
 };
+
+const TELEGRAM_LINK_TOKEN_VERSION = 1;
+const TELEGRAM_LINK_SIGNATURE_BYTES = 8;
 
 export function normalizeAddress(input: string): string | null {
   try {
@@ -189,32 +190,48 @@ export function buildPublicConfirmationUrls(config: ApiConfig, vaultAddress: str
 function encodeTelegramLinkToken(config: ApiConfig, payload: TelegramLinkPayload): string | null {
   const secret = config.telegramLinkSecret ?? config.managedTelegramBotToken;
   if (!secret) return null;
-  const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-  const signature = createHmac('sha256', secret).update(encodedPayload).digest('base64url');
-  return `${encodedPayload}.${signature}`;
+
+  const expiresAtSeconds = Math.floor(Date.parse(payload.expiresAt) / 1000);
+  const destinationIdBytes = Buffer.from(payload.destinationId, 'utf8');
+  if (!Number.isFinite(expiresAtSeconds) || destinationIdBytes.length === 0 || destinationIdBytes.length > 255) {
+    return null;
+  }
+
+  const body = Buffer.alloc(6 + destinationIdBytes.length);
+  body.writeUInt8(TELEGRAM_LINK_TOKEN_VERSION, 0);
+  body.writeUInt32BE(expiresAtSeconds, 1);
+  body.writeUInt8(destinationIdBytes.length, 5);
+  destinationIdBytes.copy(body, 6);
+
+  const signature = createHmac('sha256', secret).update(body).digest().subarray(0, TELEGRAM_LINK_SIGNATURE_BYTES);
+  return Buffer.concat([body, signature]).toString('base64url');
 }
 
 export function decodeTelegramLinkToken(config: ApiConfig, token: string): TelegramLinkPayload | null {
   const secret = config.telegramLinkSecret ?? config.managedTelegramBotToken;
   if (!secret) return null;
 
-  const [encodedPayload, signature] = token.split('.');
-  if (!encodedPayload || !signature) return null;
-  const expectedSignature = createHmac('sha256', secret).update(encodedPayload).digest('base64url');
-  if (signature !== expectedSignature) return null;
-
   try {
-    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as Partial<TelegramLinkPayload>;
-    if (
-      typeof payload.ownerAddress !== 'string' ||
-      typeof payload.label !== 'string' ||
-      typeof payload.sessionTokenHash !== 'string' ||
-      typeof payload.expiresAt !== 'string'
-    ) {
-      return null;
-    }
-    if (Date.parse(payload.expiresAt) <= Date.now()) return null;
-    return payload as TelegramLinkPayload;
+    const decoded = Buffer.from(token, 'base64url');
+    if (decoded.length < 7 + TELEGRAM_LINK_SIGNATURE_BYTES) return null;
+
+    const body = decoded.subarray(0, decoded.length - TELEGRAM_LINK_SIGNATURE_BYTES);
+    const signature = decoded.subarray(decoded.length - TELEGRAM_LINK_SIGNATURE_BYTES);
+    const expectedSignature = createHmac('sha256', secret).update(body).digest().subarray(0, TELEGRAM_LINK_SIGNATURE_BYTES);
+    if (!timingSafeEqual(signature, expectedSignature)) return null;
+
+    const version = body.readUInt8(0);
+    if (version !== TELEGRAM_LINK_TOKEN_VERSION) return null;
+
+    const expiresAtSeconds = body.readUInt32BE(1);
+    const destinationIdLength = body.readUInt8(5);
+    if (body.length !== 6 + destinationIdLength || destinationIdLength === 0) return null;
+
+    const destinationId = body.subarray(6).toString('utf8');
+    const expiresAt = new Date(expiresAtSeconds * 1000).toISOString();
+    if (Date.parse(expiresAt) <= Date.now()) return null;
+
+    return { destinationId, expiresAt };
   } catch {
     return null;
   }
@@ -448,12 +465,19 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     buildTokenAnalytics,
     sendManagedTelegramMessage,
     sendPublicConfirmationEmail,
-    buildTelegramConnectLink(params: { ownerAddress: string; label: string; sessionTokenHash: string; sessionExpiresAt: Date }) {
-      const expiresAt = new Date(Math.min(Date.now() + TELEGRAM_LINK_TTL_MS, params.sessionExpiresAt.getTime())).toISOString();
+    buildTelegramConnectLink(params: { destinationId: string; expiresAt?: Date; sessionExpiresAt?: Date }) {
+      const expiryDate = params.expiresAt ?? params.sessionExpiresAt;
+      if (!expiryDate) {
+        return {
+          expiresAt: null,
+          startToken: null,
+          botUsername: config.managedTelegramBotUsername,
+        };
+      }
+
+      const expiresAt = expiryDate.toISOString();
       const startToken = encodeTelegramLinkToken(config, {
-        ownerAddress: params.ownerAddress,
-        label: params.label,
-        sessionTokenHash: params.sessionTokenHash,
+        destinationId: params.destinationId,
         expiresAt,
       });
       return {

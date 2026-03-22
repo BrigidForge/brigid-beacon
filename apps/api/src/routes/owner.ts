@@ -3,6 +3,7 @@ import {
   CLAIM_NONCE_TTL_MS,
   DESTINATION_KINDS,
   SESSION_TTL_MS,
+  TELEGRAM_LINK_TTL_MS,
   normalizeAddress,
   parseDestinationConfig,
   parseEventKinds,
@@ -14,6 +15,11 @@ import {
 import type { ReturnTypeContext } from './types.js';
 
 export async function registerOwnerRoutes(app: FastifyInstance, ctx: ReturnTypeContext) {
+  function isLinkedTelegramDestination(configJson: unknown) {
+    if (!configJson || typeof configJson !== 'object' || Array.isArray(configJson)) return false;
+    return typeof (configJson as Record<string, unknown>).chatId === 'string';
+  }
+
   app.get('/api/v1/owner/session', async (req, reply) => {
     const auth = await ctx.requireOwnerSession(req.headers as Record<string, unknown>);
     if (!auth.ok) return reply.status(auth.statusCode).send(auth.body);
@@ -248,11 +254,22 @@ export async function registerOwnerRoutes(app: FastifyInstance, ctx: ReturnTypeC
     }
 
     const label = ((req.body as { label?: string } | undefined)?.label?.trim()) || 'Telegram alerts';
+    const expiresAt = new Date(Math.min(Date.now() + TELEGRAM_LINK_TTL_MS, auth.session.expiresAt.getTime()));
+    const pendingDestination = await ctx.prisma.notificationDestination.create({
+      data: {
+        ownerAddress: auth.session.ownerAddress,
+        kind: 'telegram',
+        label,
+        configJson: {
+          pendingSessionTokenHash: auth.session.tokenHash,
+          pendingExpiresAt: expiresAt.toISOString(),
+        },
+      },
+    });
+
     const link = ctx.buildTelegramConnectLink({
-      ownerAddress: auth.session.ownerAddress,
-      label,
-      sessionTokenHash: auth.session.tokenHash,
-      sessionExpiresAt: auth.session.expiresAt,
+      destinationId: pendingDestination.id,
+      expiresAt,
     });
     if (!link.startToken || !link.botUsername) {
       return reply.status(503).send({ error: 'Unavailable', message: 'Beacon-managed Telegram connect is missing its signing secret.' });
@@ -268,13 +285,62 @@ export async function registerOwnerRoutes(app: FastifyInstance, ctx: ReturnTypeC
     };
   });
 
+  app.post('/api/v1/owner/vaults/:vaultAddress/purposes', async (req, reply) => {
+    const auth = await ctx.requireOwnerSession(req.headers as Record<string, unknown>);
+    if (!auth.ok) return reply.status(auth.statusCode).send(auth.body);
+
+    const vaultAddress = normalizeAddress((req.params as { vaultAddress: string }).vaultAddress);
+    const body = req.body as { purposeHash?: string; purposeText?: string };
+    const purposeHash = body.purposeHash?.trim().toLowerCase() ?? '';
+    const purposeText = body.purposeText?.trim() ?? '';
+
+    if (!vaultAddress) {
+      return reply.status(404).send({ error: 'Not found', message: 'Invalid vault address.' });
+    }
+    if (!/^0x[a-f0-9]{64}$/.test(purposeHash)) {
+      return reply.status(400).send({ error: 'Bad request', message: 'Valid purposeHash is required.' });
+    }
+    if (purposeText.length === 0) {
+      return reply.status(400).send({ error: 'Bad request', message: 'Purpose text is required.' });
+    }
+
+    const claim = await ctx.getActiveClaim(vaultAddress, auth.session.ownerAddress);
+    if (!claim) return reply.status(403).send({ error: 'Forbidden', message: 'Active vault claim required.' });
+
+    const purpose = await ctx.prisma.withdrawalPurpose.upsert({
+      where: {
+        vaultAddress_purposeHash: {
+          vaultAddress,
+          purposeHash,
+        },
+      },
+      update: {
+        ownerAddress: auth.session.ownerAddress,
+        purposeText,
+      },
+      create: {
+        vaultAddress,
+        ownerAddress: auth.session.ownerAddress,
+        purposeHash,
+        purposeText,
+      },
+    });
+
+    return {
+      vaultAddress: purpose.vaultAddress,
+      purposeHash: purpose.purposeHash,
+      purposeText: purpose.purposeText,
+      updatedAt: purpose.updatedAt.toISOString(),
+    };
+  });
+
   app.get('/api/v1/owner/destinations', async (req, reply) => {
     const auth = await ctx.requireOwnerSession(req.headers as Record<string, unknown>);
     if (!auth.ok) return reply.status(auth.statusCode).send(auth.body);
-    const destinations = await ctx.prisma.notificationDestination.findMany({
+    const destinations = (await ctx.prisma.notificationDestination.findMany({
       where: { ownerAddress: auth.session.ownerAddress, disabledAt: null },
       orderBy: { createdAt: 'asc' },
-    });
+    })).filter((destination) => destination.kind !== 'telegram' || isLinkedTelegramDestination(destination.configJson));
 
     return {
       ownerAddress: auth.session.ownerAddress,
@@ -334,7 +400,19 @@ export async function registerOwnerRoutes(app: FastifyInstance, ctx: ReturnTypeC
       orderBy: { createdAt: 'desc' },
     });
     if (existing) {
-      return reply.status(409).send({ error: 'Conflict', message: 'Active subscription already exists for vault/destination.' });
+      const subscription = await ctx.prisma.notificationSubscription.update({
+        where: { id: existing.id },
+        data: { eventKindsJson: eventKinds },
+      });
+      return {
+        id: subscription.id,
+        vaultAddress: subscription.vaultAddress,
+        destinationId: subscription.destinationId,
+        ownerAddress: subscription.ownerAddress,
+        eventKinds,
+        createdAt: subscription.createdAt.toISOString(),
+        disabledAt: subscription.disabledAt?.toISOString() ?? null,
+      };
     }
 
     const subscription = await ctx.prisma.notificationSubscription.create({

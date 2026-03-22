@@ -43,10 +43,33 @@ export async function registerIntegrationRoutes(app: FastifyInstance, ctx: Retur
       return { ok: true };
     }
 
+    const destination = await ctx.prisma.notificationDestination.findFirst({
+      where: {
+        id: payload.destinationId,
+        kind: 'telegram',
+        disabledAt: null,
+      },
+    });
+
+    const destinationConfig =
+      destination?.configJson && typeof destination.configJson === 'object' && !Array.isArray(destination.configJson)
+        ? (destination.configJson as Record<string, unknown>)
+        : null;
+
+    const pendingSessionTokenHash =
+      typeof destinationConfig?.pendingSessionTokenHash === 'string' ? destinationConfig.pendingSessionTokenHash : null;
+    const pendingExpiresAt =
+      typeof destinationConfig?.pendingExpiresAt === 'string' ? destinationConfig.pendingExpiresAt : null;
+
+    if (!destination || !pendingSessionTokenHash || !pendingExpiresAt || Date.parse(pendingExpiresAt) <= Date.now()) {
+      await ctx.sendManagedTelegramMessage(chatId, 'Your Beacon session expired before this chat was linked. Go back to Beacon and try Connect Telegram again.').catch(() => {});
+      return { ok: true };
+    }
+
     const session = await ctx.prisma.ownerSession.findFirst({
       where: {
-        ownerAddress: payload.ownerAddress,
-        tokenHash: payload.sessionTokenHash,
+        ownerAddress: destination.ownerAddress,
+        tokenHash: pendingSessionTokenHash,
         revokedAt: null,
       },
     });
@@ -56,7 +79,7 @@ export async function registerIntegrationRoutes(app: FastifyInstance, ctx: Retur
     }
 
     const activeTelegramDestinations = await ctx.prisma.notificationDestination.findMany({
-      where: { ownerAddress: payload.ownerAddress, kind: 'telegram', disabledAt: null },
+      where: { ownerAddress: destination.ownerAddress, kind: 'telegram', disabledAt: null },
     });
     const existingDestination = activeTelegramDestinations.find((destination) => {
       const configJson =
@@ -72,18 +95,25 @@ export async function registerIntegrationRoutes(app: FastifyInstance, ctx: Retur
       ...(chat.username ? { chatUsername: chat.username } : {}),
     } satisfies Prisma.InputJsonObject;
 
-    if (existingDestination) {
+    const destinationLabel = destination.label || 'Telegram alerts';
+
+    if (existingDestination && existingDestination.id !== destination.id) {
       await ctx.prisma.notificationDestination.update({
         where: { id: existingDestination.id },
-        data: { label: payload.label, configJson },
+        data: { label: destinationLabel, configJson },
+      });
+      await ctx.prisma.notificationDestination.update({
+        where: { id: destination.id },
+        data: { disabledAt: new Date() },
       });
     } else {
-      await ctx.prisma.notificationDestination.create({
-        data: { ownerAddress: payload.ownerAddress, kind: 'telegram', label: payload.label, configJson },
+      await ctx.prisma.notificationDestination.update({
+        where: { id: destination.id },
+        data: { configJson },
       });
     }
 
-    await ctx.sendManagedTelegramMessage(chatId, `Beacon alerts are now connected to this chat as "${payload.label}". Return to Beacon to choose which events you want.`).catch(() => {});
+    await ctx.sendManagedTelegramMessage(chatId, `Beacon alerts are now connected to this chat as "${destinationLabel}". Return to Beacon to choose which events you want.`).catch(() => {});
     return { ok: true };
   });
 }

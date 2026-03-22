@@ -28,6 +28,7 @@ export type { VaultStatus };
 
 export interface VaultEventsResponse {
   events: NormalizedEvent[];
+  purposeTexts: Record<string, string>;
 }
 
 export interface DeploymentProofConfig {

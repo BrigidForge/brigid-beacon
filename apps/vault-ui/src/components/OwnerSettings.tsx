@@ -33,6 +33,25 @@ const EVENT_OPTIONS = [
   'excess_deposited',
 ] as const;
 
+function getTelegramAppDeepLink(botUsername: string, webLink: string): string {
+  try {
+    const parsed = new URL(webLink);
+    const start = parsed.searchParams.get('start');
+    return start
+      ? `tg://resolve?domain=${encodeURIComponent(botUsername)}&start=${encodeURIComponent(start)}`
+      : `tg://resolve?domain=${encodeURIComponent(botUsername)}`;
+  } catch {
+    return `tg://resolve?domain=${encodeURIComponent(botUsername)}`;
+  }
+}
+
+function openTelegramLink(botUsername: string, webLink: string): void {
+  if (typeof window === 'undefined') return;
+
+  const appLink = getTelegramAppDeepLink(botUsername, webLink);
+  window.location.assign(appLink);
+}
+
 export function OwnerSettings(props: {
   vaultAddress: string;
   indexedOwnerAddress: string;
@@ -128,6 +147,13 @@ export function OwnerSettings(props: {
     setMessage(`Telegram connected. "${linked.label}" is ready for subscriptions.`);
   }, [awaitingTelegramConnection, destinations]);
 
+  useEffect(() => {
+    if (!selectedDestinationId) return;
+    const existingSubscription = subscriptions.find((subscription) => subscription.destinationId === selectedDestinationId);
+    if (!existingSubscription) return;
+    setSelectedEventKinds(existingSubscription.eventKinds);
+  }, [selectedDestinationId, subscriptions]);
+
   async function handleClaim() {
     setBusy(true); setError(null); setMessage(null);
     try {
@@ -167,13 +193,12 @@ export function OwnerSettings(props: {
   async function handleCreateSubscription() {
     setBusy(true); setError(null); setMessage(null);
     try {
-      if (duplicateSubscription) throw new Error('This destination already has an active subscription for the current vault.');
       await createSubscription({ sessionToken: sessionToken!, vaultAddress, ownerAddress, destinationId: selectedDestinationId, eventKinds: selectedEventKinds });
       const subscriptionList = await fetchSubscriptions(sessionToken!, vaultAddress);
       setSubscriptions(subscriptionList.subscriptions);
       const deliveryList = await fetchDeliveries(sessionToken!, vaultAddress);
       setDeliveries(deliveryList.deliveries);
-      setMessage('Subscription saved for this vault.');
+      setMessage(duplicateSubscription ? 'Subscription updated for this vault.' : 'Subscription saved for this vault.');
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
     finally { setBusy(false); }
   }
@@ -211,6 +236,9 @@ export function OwnerSettings(props: {
     if (status === 'failed') return 'border-rose-300/30 bg-rose-300/10 text-rose-50';
     return 'border-amber-300/30 bg-amber-300/10 text-amber-50';
   }
+
+  const showTelegramFeedback = destinationKind === 'telegram' && (Boolean(message) || Boolean(error) || awaitingTelegramConnection);
+  const showGlobalFeedback = destinationKind !== 'telegram' && (Boolean(message) || Boolean(error));
 
   return (
     <section className="space-y-6 rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-[0_25px_90px_rgba(15,23,42,0.25)]">
@@ -298,13 +326,20 @@ export function OwnerSettings(props: {
                   <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-300/5 px-4 py-4">
                     <p className="text-sm text-slate-300">Bot: <span className="font-mono text-white">@{telegramConnectLink.botUsername}</span></p>
                     <p className="mt-1 text-xs text-slate-400">Link expires {formatIso(telegramConnectLink.expiresAt)}</p>
+                    <button
+                      type="button"
+                      onClick={() => openTelegramLink(telegramConnectLink.botUsername, telegramConnectLink.deepLinkUrl)}
+                      className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-emerald-300/40 bg-emerald-300/15 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-300/25"
+                    >
+                      Open Telegram App
+                    </button>
                     <a
                       href={telegramConnectLink.deepLinkUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-emerald-300/40 bg-emerald-300/15 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-300/25"
+                      className="mt-3 inline-flex items-center gap-2 text-xs text-emerald-200/80 transition hover:text-emerald-100"
                     >
-                      Open Telegram ↗
+                      Use Telegram web link instead ↗
                     </a>
                   </div>
                 ) : null}
@@ -321,8 +356,16 @@ export function OwnerSettings(props: {
               className="inline-flex rounded-2xl border border-sky-300/30 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-50 disabled:cursor-not-allowed disabled:opacity-50">
               {destinationKind === 'telegram' ? 'Connect Telegram' : 'Save destination'}
             </button>
-            {destinationKind === 'telegram' && awaitingTelegramConnection ? (
-              <p className="text-sm text-slate-300">Waiting for Telegram confirmation. After you press Start in the bot, Beacon will connect the chat automatically.</p>
+            {showTelegramFeedback ? (
+              <div className="space-y-3">
+                {awaitingTelegramConnection ? (
+                  <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                    Waiting for Telegram confirmation. After you press Start in the bot, Beacon will connect the chat automatically.
+                  </p>
+                ) : null}
+                {message ? <p className="rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-50">{message}</p> : null}
+                {error ? <p className="rounded-2xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-50">{error}</p> : null}
+              </div>
             ) : null}
           </div>
         </div>
@@ -330,7 +373,7 @@ export function OwnerSettings(props: {
         <div className="rounded-3xl border border-white/10 bg-slate-950/45 p-5">
           <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Subscription</p>
           {selectedDestination ? <p className="mt-3 text-sm text-slate-300">Selected: <span className="text-white">{selectedDestination.label}</span></p> : null}
-          {duplicateSubscription ? <p className="mt-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-50">This destination already has an active subscription for this vault.</p> : null}
+          {duplicateSubscription ? <p className="mt-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-50">This destination already has an active subscription for this vault. Saving here will update its event selections.</p> : null}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {EVENT_OPTIONS.map((kind) => (
               <label key={kind} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
@@ -339,10 +382,10 @@ export function OwnerSettings(props: {
               </label>
             ))}
           </div>
-          <button type="button" disabled={busy || !canManage || !selectedDestinationId || selectedEventKinds.length === 0 || Boolean(duplicateSubscription)}
+          <button type="button" disabled={busy || !canManage || !selectedDestinationId || selectedEventKinds.length === 0}
             onClick={() => void handleCreateSubscription()}
             className="mt-4 inline-flex rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-medium text-amber-50 disabled:cursor-not-allowed disabled:opacity-50">
-            Save subscription
+            {duplicateSubscription ? 'Update subscription' : 'Save subscription'}
           </button>
         </div>
       </div>
@@ -434,8 +477,8 @@ export function OwnerSettings(props: {
         </div>
       </div>
 
-      {message ? <p className="rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-50">{message}</p> : null}
-      {error ? <p className="rounded-2xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-50">{error}</p> : null}
+      {showGlobalFeedback && message ? <p className="rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-50">{message}</p> : null}
+      {showGlobalFeedback && error ? <p className="rounded-2xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-50">{error}</p> : null}
     </section>
   );
 }

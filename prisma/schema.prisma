@@ -35,6 +35,7 @@ model Vault {
   snapshots      VaultSnapshot[]
   claimNonces    ClaimNonce[]
   claims         VaultClaim[]
+  withdrawalPurposes WithdrawalPurpose[]
   subscriptions  NotificationSubscription[]
   publicEmailSubscriptions PublicEmailSubscription[]
 }
@@ -143,6 +144,22 @@ model OwnerSession {
   @@index([ownerAddress])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+model WithdrawalPurpose {
+  id          String   @id @default(cuid())
+  vaultAddress String
+  ownerAddress String
+  purposeHash String
+  purposeText String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vault Vault @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
+
+  @@unique([vaultAddress, purposeHash])
+  @@index([vaultAddress])
+  @@index([ownerAddress])
 }
 
 model NotificationDestination {
@@ -282,4 +299,3 @@ model PublicEmailDelivery {
   @@index([status])
   @@unique([beaconEventId, publicSubscriptionId])
 }
-

@@ -34,6 +34,14 @@ export interface FormattedNotification {
   blockNumber: number;
   transactionLink: string;
   countdown: string | null; // e.g. "Executable in 2d 5h" or "Expires in 1d 12h"
+  publicViewerLink: string | null;
+  requestTypeLabel: string | null;
+  purposeText: string | null;
+  purposeReference: string | null;
+  requestedAtLabel: string | null;
+  executableAtLabel: string | null;
+  expiresAtLabel: string | null;
+  delayLabel: string | null;
   shortSummary: string; // one-line for Telegram/Discord preview
 }
 
