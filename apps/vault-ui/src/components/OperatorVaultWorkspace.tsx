@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import type { DeploymentProof, NormalizedEvent, VaultMetadata, VaultStatus } from '@brigid/beacon-shared-types';
 import { fetchVaultBundle } from '../lib/api';
 import type { WalletSession } from '../lib/operatorVault';
-import { VaultSummaryPanel } from './VaultSummaryPanel';
 import { VaultStatusTab } from './VaultStatusTab';
 import { VaultActivityTab } from './VaultActivityTab';
 import { TransactionsTab } from './TransactionsTab';
@@ -137,8 +136,6 @@ export function OperatorVaultWorkspace(props: {
 
   return (
     <div className="space-y-8">
-      <VaultSummaryPanel metadata={metadata} />
-
       <section className="rounded-[2rem] border border-white/10 bg-white/5 p-4">
         <div className="flex flex-wrap gap-3">
           {TABS.map((tab) => (

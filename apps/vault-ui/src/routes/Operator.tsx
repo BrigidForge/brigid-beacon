@@ -1,15 +1,18 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { OperatorSessionProvider, useOperatorSession } from '../components/OperatorSessionProvider';
 import { OperatorVaultWorkspace } from '../components/OperatorVaultWorkspace';
 import { CopyableAddress } from '../components/CopyableAddress';
-import { shortenAddress } from '../lib/format';
-import { NETWORK_NAMES } from '../lib/operatorVault';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { NETWORK_NAMES, fetchTokenSymbol } from '../lib/operatorVault';
 
 export default function Operator() {
   return (
-    <OperatorSessionProvider>
-      <OperatorContent />
-    </OperatorSessionProvider>
+    <ErrorBoundary label="Operator panel error">
+      <OperatorSessionProvider>
+        <OperatorContent />
+      </OperatorSessionProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -32,6 +35,17 @@ function OperatorContent() {
   } = useOperatorSession();
 
   const networkLabel = NETWORK_NAMES[walletSession?.chainId ?? 97] ?? `Chain ${walletSession?.chainId ?? 97}`;
+
+  const [tokenSymbols, setTokenSymbols] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!ownedVaults) return;
+    for (const entry of ownedVaults.vaults) {
+      const addr = entry.metadata.token;
+      void fetchTokenSymbol(addr).then((sym) => {
+        if (sym) setTokenSymbols((prev) => ({ ...prev, [addr.toLowerCase()]: sym }));
+      });
+    }
+  }, [ownedVaults]);
 
   // ── Not connected: landing ───────────────────────────────────
   const hasInjectedWallet = typeof window !== 'undefined' && 'ethereum' in window;
@@ -188,8 +202,19 @@ function OperatorContent() {
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-sm text-slate-100">{entry.metadata.address}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      {shortenAddress(entry.metadata.token)} · {entry.status.state.replace(/_/g, ' ')}
+                    <p className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
+                      <span>Token: {tokenSymbols[entry.metadata.token.toLowerCase()] ?? '…'}</span>
+                      <span>·</span>
+                      <span className="flex items-center gap-1">
+                        <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                          ['idle', 'active_no_request', 'completed_recently', 'canceled_recently', 'request_expired'].includes(entry.status.state)
+                            ? 'bg-emerald-400'
+                            : 'bg-amber-400'
+                        }`} />
+                        {['idle', 'active_no_request', 'completed_recently', 'canceled_recently', 'request_expired'].includes(entry.status.state)
+                          ? 'Status: Ready'
+                          : 'Status: Request Processing'}
+                      </span>
                     </p>
                   </div>
                   <span className={`ml-4 shrink-0 text-base transition-transform duration-150 group-hover:translate-x-0.5 ${isActive ? 'text-sky-300' : 'text-slate-500 group-hover:text-sky-300'}`}>→</span>
@@ -217,11 +242,13 @@ function OperatorContent() {
           );
         }
         return (
-          <OperatorVaultWorkspace
-            vaultAddress={vaultAddress}
-            walletSession={walletSession}
-            ensureWallet={ensureWallet}
-          />
+          <ErrorBoundary label="Vault workspace error">
+            <OperatorVaultWorkspace
+              vaultAddress={vaultAddress}
+              walletSession={walletSession}
+              ensureWallet={ensureWallet}
+            />
+          </ErrorBoundary>
         );
       })()}
     </div>

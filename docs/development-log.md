@@ -2,6 +2,52 @@
 
 ---
 
+## 2026-03-22 — Operator Panel UX: Vesting/Surplus Separation + Label Cleanup
+
+### Summary
+
+Refactored the Vault Status tab in the operator panel to improve clarity and
+usability by separating vesting and surplus data into distinct containers, and
+removing confusing "Protected" / "Excess" terminology throughout the UI.
+
+### Changes
+
+**`apps/vault-ui/src/components/VaultStatusTab.tsx`**
+
+- Replaced the flat 8-card stat grid with a structured three-section layout:
+  1. **Available to Withdraw** — full-width hero card at the top, prominently
+     sized, showing vested principal ready to request.
+  2. **Vesting Allocation** — container with sky-blue accent, listing:
+     Remaining to Vest, Total Vested (%), Vested Withdrawn, Total Allocation,
+     Funding status.
+  3. **Surplus Funds** — container with amber accent, listing:
+     Surplus Available, Surplus Withdrawn.
+- Dropped the `StatCard` component; replaced with a compact `SubStat` row
+  component (label / value / hint, separator lines) suited for within-container
+  display.
+- Removed all "Protected" and "Excess" labels from the UI. No contract calls
+  or variable names were changed — presentation layer only.
+- Funding health indicator moved inside the Vesting container with green/amber
+  colour coding.
+
+**`apps/vault-ui/src/routes/Operator.tsx`** (prior session)
+
+- Vault selector second line now shows `Token: <symbol>` (live RPC lookup with
+  cache) and a coloured dot status: green "Status: Ready" or amber
+  "Status: Request Processing".
+- Vault Identity panel (`VaultSummaryPanel`) moved from above the tabs to
+  inside the Vault Status tab only.
+
+### Why
+
+- "Protected" reads as a security concept; "Excess" implies an error condition.
+  Operators found the flat grid confusing and couldn't easily tell which funds
+  were rule-bound vs. freely withdrawable.
+- Separating into two visually distinct containers with descriptive subtitles
+  makes the distinction self-evident without requiring documentation.
+
+---
+
 ## 2026-03-19 — Unified Vault UI (`apps/vault-ui`)
 
 ### Summary

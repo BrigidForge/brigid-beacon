@@ -59,6 +59,22 @@ export const ERC20_ABI = [
   'function symbol() view returns (string)',
 ] as const;
 
+const tokenSymbolCache = new Map<string, string>();
+
+export async function fetchTokenSymbol(tokenAddress: string): Promise<string> {
+  const key = tokenAddress.toLowerCase();
+  if (tokenSymbolCache.has(key)) return tokenSymbolCache.get(key)!;
+  try {
+    const provider = new ethers.JsonRpcProvider(DEFAULT_RPC_URL);
+    const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    const symbol = await (contract.symbol() as Promise<string>);
+    tokenSymbolCache.set(key, symbol);
+    return symbol;
+  } catch {
+    return '';
+  }
+}
+
 export type OperatorEthereumProvider = {
   isMetaMask?: boolean;
   isRabby?: boolean;
@@ -389,18 +405,28 @@ export async function switchToOperatorChain(): Promise<WalletSession> {
   return activeWalletSession;
 }
 
-// Opens the connected wallet app on iOS via the WalletConnect session redirect URL.
-// Must be called synchronously before any await inside an onClick handler so that
-// iOS Safari does not block the window.open call as an untrusted popup.
-export function openWalletForSigning(session: WalletSession): void {
-  if (session.kind !== 'walletconnect' || !walletConnectProvider) return;
+// Returns the WalletConnect session deep-link URL, or null if unavailable.
+export function getWalletOpenUrl(session: WalletSession): string | null {
+  if (session.kind !== 'walletconnect' || !walletConnectProvider) return null;
   const raw = walletConnectProvider as unknown as {
     session?: { peer?: { metadata?: { redirect?: { native?: string; universal?: string } } } };
   };
   const redirect = raw.session?.peer?.metadata?.redirect;
-  const url = redirect?.universal ?? redirect?.native;
+  return redirect?.universal ?? redirect?.native ?? null;
+}
+
+// Opens the connected wallet app on iOS via the WalletConnect session redirect URL.
+// Must be called synchronously before any await inside an onClick handler so that
+// iOS Safari does not block the window.open call as an untrusted popup.
+//
+// Opens an intermediate delay page first so that by the time the wallet app
+// launches (~2 s later), the WalletConnect eth_sendTransaction request has had
+// time to reach the relay and will be visible in the wallet immediately.
+export function openWalletForSigning(session: WalletSession): void {
+  const url = getWalletOpenUrl(session);
   if (url && typeof window !== 'undefined') {
-    window.open(url, '_blank');
+    const redirect = `/wallet-open.html?delay=2000&to=${encodeURIComponent(url)}`;
+    window.open(redirect, '_blank');
   }
 }
 
