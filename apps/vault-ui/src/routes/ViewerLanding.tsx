@@ -50,21 +50,6 @@ export default function ViewerLanding() {
             View Vault
           </button>
         </form>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3">
-            <p className="text-xs uppercase tracking-widest text-emerald-300/70">Status</p>
-            <p className="mt-1 text-xs text-emerald-100/80">Live state &amp; balances</p>
-          </div>
-          <div className="rounded-2xl border border-sky-300/20 bg-sky-300/10 px-4 py-3">
-            <p className="text-xs uppercase tracking-widest text-sky-300/70">Activity</p>
-            <p className="mt-1 text-xs text-sky-100/80">Full event history</p>
-          </div>
-          <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3">
-            <p className="text-xs uppercase tracking-widest text-amber-300/70">Alerts</p>
-            <p className="mt-1 text-xs text-amber-100/80">Email notifications</p>
-          </div>
-        </div>
       </div>
     </div>
   );

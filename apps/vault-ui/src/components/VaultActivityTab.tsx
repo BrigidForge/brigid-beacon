@@ -1,5 +1,6 @@
 import type { NormalizedEvent } from '@brigid/beacon-shared-types';
 import { formatIso, formatStateLabel, formatTokenAmount, shortenAddress, shortenHash } from '../lib/format';
+import { EXPLORERS } from '../lib/operatorVault';
 
 function summarizeEvent(event: NormalizedEvent): { title: string; detail: string; amount?: string; accent: string } {
   const payload = (event.payload ?? {}) as unknown as Record<string, unknown>;
@@ -28,7 +29,9 @@ function summarizeEvent(event: NormalizedEvent): { title: string; detail: string
   }
 }
 
-export function VaultActivityTab(props: { events: NormalizedEvent[] }) {
+export function VaultActivityTab(props: { events: NormalizedEvent[]; chainId: number }) {
+  const explorerBase = EXPLORERS[props.chainId];
+
   return (
     <section className="space-y-6">
       <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
@@ -72,7 +75,18 @@ export function VaultActivityTab(props: { events: NormalizedEvent[] }) {
                     <div className="mt-4 flex flex-col gap-2 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                       <span>{formatIso(event.timestamp)}</span>
                       <span>Block #{event.blockNumber}</span>
-                      <span className="font-mono text-slate-500">{shortenHash(event.transactionHash)}</span>
+                      {explorerBase ? (
+                        <a
+                          href={`${explorerBase}/tx/${event.transactionHash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-sky-400 transition hover:text-sky-200"
+                        >
+                          {shortenHash(event.transactionHash)} ↗
+                        </a>
+                      ) : (
+                        <span className="font-mono text-slate-500">{shortenHash(event.transactionHash)}</span>
+                      )}
                     </div>
                   </div>
                 );

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Opening wallet…</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body {
+      background: #020617;
+      color: #94a3b8;
+      font-family: -apple-system, system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    p { font-size: 0.95rem; margin: 0; line-height: 1.6; }
+    a {
+      display: inline-block;
+      margin-top: 1.5rem;
+      padding: 0.625rem 1.25rem;
+      background: rgba(125,211,252,0.1);
+      border: 1px solid rgba(125,211,252,0.3);
+      border-radius: 1rem;
+      color: #7dd3fc;
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+  </style>
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var to = params.get('to');
+      var delay = parseInt(params.get('delay') || '2000', 10);
+      var returnUrl = (window.opener && window.opener.location && window.opener.location.href) || '/operator';
+      var openButton;
+
+      function openWallet() {
+        if (!to) return;
+        window.location.assign(decodeURIComponent(to));
+      }
+
+      function showManualState() {
+        if (openButton) openButton.hidden = false;
+      }
+
+      if (to) {
+        setTimeout(function () {
+          // Switch to wallet app from the active Safari tab. iOS is more
+          // reliable with same-tab custom-scheme navigation than with popups.
+          openWallet();
+
+          // If the deep link did not leave Safari, keep a visible manual retry.
+          setTimeout(showManualState, 1200);
+        }, delay);
+      }
+
+      window.addEventListener('pageshow', function () {
+        setTimeout(function () {
+          if (document.visibilityState === 'visible') {
+            window.location.replace(returnUrl);
+          }
+        }, 150);
+      });
+
+      window.addEventListener('DOMContentLoaded', function () {
+        openButton = document.getElementById('open-wallet');
+        if (openButton) {
+          openButton.addEventListener('click', function (event) {
+            event.preventDefault();
+            openWallet();
+          });
+        }
+      });
+    }());
+  </script>
+</head>
+<body>
+  <div>
+    <p>Opening wallet…</p>
+    <a id="open-wallet" href="#" hidden>Open Wallet</a>
+    <a href="/operator">← Return to operator panel</a>
+  </div>
+</body>
+</html>

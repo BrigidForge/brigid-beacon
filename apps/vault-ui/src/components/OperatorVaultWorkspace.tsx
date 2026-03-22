@@ -164,9 +164,9 @@ export function OperatorVaultWorkspace(props: {
           onRequireWallet={ensureWallet}
         />
       ) : activeTab === 'activity' ? (
-        <VaultActivityTab events={events} />
+        <VaultActivityTab events={events} chainId={metadata.chainId} />
       ) : (
-        <OwnerSettings vaultAddress={metadata.address} indexedOwnerAddress={metadata.owner} />
+        <OwnerSettings vaultAddress={metadata.address} indexedOwnerAddress={metadata.owner} walletSession={walletSession} />
       )}
     </div>
   );

@@ -136,17 +136,6 @@ function OperatorContent() {
               </div>
             )}
           </div>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-sky-300/20 bg-sky-300/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-widest text-sky-300/70">Withdrawals</p>
-              <p className="mt-1 text-xs text-sky-100/80">Request, cancel &amp; execute vault withdrawals</p>
-            </div>
-            <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-widest text-amber-300/70">Beacon Alerts</p>
-              <p className="mt-1 text-xs text-amber-100/80">Webhook, Discord &amp; Telegram notifications</p>
-            </div>
-          </div>
         </div>
       </div>
     );

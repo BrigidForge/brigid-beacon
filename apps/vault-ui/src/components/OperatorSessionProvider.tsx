@@ -79,6 +79,23 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
   const [ownedVaults, setOwnedVaults] = useState<OperatorOwnedVaultsResponse | null>(null);
   const [ownedVaultsLoading, setOwnedVaultsLoading] = useState(false);
 
+  async function restoreStoredSession(kind: WalletConnectionKind) {
+    const session = await connectWallet(kind, { silent: true });
+    const vaults = await loadOwnedVaults(session.address);
+    if (vaults.vaults.length === 0) {
+      await disconnectWallet(session.kind);
+      clearStoredWalletSession();
+      setOwnedVaults(null);
+      setWalletError(NO_VAULTS_MESSAGE);
+      return;
+    }
+    setWalletSession(session);
+    setWalletConnectStatus(null);
+    setWalletConnectUri(null);
+    setWalletError(null);
+    setWalletMessage(null);
+  }
+
   async function loadOwnedVaults(ownerAddress: string) {
     setOwnedVaultsLoading(true);
     try {
@@ -115,23 +132,48 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
     const storedKind = readStoredWalletSession();
     if (!storedKind) return;
 
-    void connectWallet(storedKind, { silent: true })
-      .then((session) => loadOwnedVaults(session.address).then((vaults) => ({ session, vaults })))
-      .then(({ session, vaults }) => {
-        if (vaults.vaults.length > 0) {
-          setWalletSession(session);
-        } else {
-          void disconnectWallet(session.kind);
-          clearStoredWalletSession();
-          setOwnedVaults(null);
-          setWalletError(NO_VAULTS_MESSAGE);
-        }
-      })
-      .catch(() => {
-        clearStoredWalletSession();
-        setOwnedVaults(null);
-      });
+    if (storedKind === 'walletconnect') {
+      setWalletConnectStatus('Reconnecting to WalletConnect...');
+    }
+
+    void restoreStoredSession(storedKind).catch(() => {
+      if (storedKind === 'walletconnect') {
+        setWalletConnectStatus('Waiting for wallet session to return...');
+        return;
+      }
+      clearStoredWalletSession();
+      setOwnedVaults(null);
+    });
   }, []);
+
+  useEffect(() => {
+    function shouldRetry() {
+      return !walletSession && readStoredWalletSession() === 'walletconnect';
+    }
+
+    function retryRestore() {
+      if (!shouldRetry()) return;
+      setWalletConnectStatus('Reconnecting to WalletConnect...');
+      void restoreStoredSession('walletconnect').catch(() => {
+        setWalletConnectStatus('Waiting for wallet session to return...');
+      });
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        retryRestore();
+      }
+    }
+
+    window.addEventListener('pageshow', retryRestore);
+    window.addEventListener('focus', retryRestore);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('pageshow', retryRestore);
+      window.removeEventListener('focus', retryRestore);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [walletSession]);
 
   async function ensureWallet(kind: WalletConnectionKind = walletSession?.kind ?? 'injected') {
     if (walletSession && walletSession.kind === kind) {

@@ -254,10 +254,18 @@ export async function readOperatorSnapshot(vaultAddress: string): Promise<Operat
 type WalletConnectProvider = OperatorEthereumProvider & {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
+  signer?: {
+    uri?: string;
+  };
+  session?: {
+    peer?: { metadata?: { redirect?: { native?: string; universal?: string } } };
+  };
 };
 
 let walletConnectProvider: WalletConnectProvider | null = null;
 let activeWalletSession: WalletSession | null = null;
+let walletConnectDisplayUriHandlerBound = false;
+let walletConnectDisplayUriCallback: ((uri: string) => void) | undefined;
 
 async function getWalletConnectProvider(): Promise<WalletConnectProvider> {
   if (walletConnectProvider) {
@@ -277,8 +285,21 @@ async function getWalletConnectProvider(): Promise<WalletConnectProvider> {
 
   walletConnectProvider = (await EthereumProvider.init({
     projectId,
-    chains: [DEFAULT_OPERATOR_CHAIN_ID],
+    optionalChains: [DEFAULT_OPERATOR_CHAIN_ID],
+    rpcMap: {
+      [DEFAULT_OPERATOR_CHAIN_ID]: DEFAULT_RPC_URL,
+    },
     showQrModal: false,
+    methods: [
+      'eth_sendTransaction',
+      'personal_sign',
+      'eth_sign',
+      'eth_signTypedData',
+      'eth_signTypedData_v4',
+      'wallet_switchEthereumChain',
+      'wallet_addEthereumChain',
+    ],
+    events: ['accountsChanged', 'chainChanged', 'disconnect'],
     metadata: {
       name: 'BrigidVault',
       description: 'Operator transactions and Beacon notifications for BrigidVault.',
@@ -323,13 +344,62 @@ export async function connectWallet(
 
   if (kind === 'walletconnect') {
     const walletConnect = await getWalletConnectProvider();
-    walletConnect.on?.('display_uri', (uri: unknown) => {
-      if (typeof uri === 'string') {
-        options?.onDisplayUri?.(uri);
-      }
-    });
+    if (!walletConnectDisplayUriHandlerBound) {
+      walletConnect.on?.('display_uri', (uri: unknown) => {
+        if (typeof uri === 'string') {
+          walletConnectDisplayUriCallback?.(uri);
+        }
+      });
+      walletConnect.on?.('disconnect', () => {
+        activeWalletSession = null;
+      });
+      walletConnectDisplayUriHandlerBound = true;
+    }
+    const onDisplayUri = options?.onDisplayUri;
+    walletConnectDisplayUriCallback = onDisplayUri;
     if (!options?.silent) {
-      await walletConnect.connect();
+      let connectUriSeen = false;
+      const emitUri = (uri: string) => {
+        if (!connectUriSeen) {
+          connectUriSeen = true;
+        }
+        onDisplayUri?.(uri);
+      };
+      walletConnectDisplayUriCallback = emitUri;
+
+      const uriPollPromise = new Promise<void>((resolve) => {
+        const startedAt = Date.now();
+        const timer = window.setInterval(() => {
+          const uri = walletConnect.signer?.uri;
+          if (typeof uri === 'string' && uri.length > 0) {
+            window.clearInterval(timer);
+            emitUri(uri);
+            resolve();
+            return;
+          }
+          if (Date.now() - startedAt >= 10_000) {
+            window.clearInterval(timer);
+            resolve();
+          }
+        }, 200);
+      });
+
+      const connectPromise = walletConnect.connect();
+      await Promise.race([
+        connectPromise,
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => {
+            reject(new Error('WalletConnect pairing timed out before the pairing link became available. Clear this site in your wallet and try again.'));
+          }, 30_000);
+        }),
+      ]).catch(async (error) => {
+        await walletConnect.disconnect().catch(() => undefined);
+        walletConnectProvider = null;
+        walletConnectDisplayUriHandlerBound = false;
+        walletConnectDisplayUriCallback = undefined;
+        throw error;
+      });
+      await uriPollPromise;
     }
     eip1193Provider = walletConnect as unknown as OperatorEthereumProvider;
   } else {
@@ -367,6 +437,8 @@ export async function disconnectWallet(kind: WalletConnectionKind | null): Promi
   if (kind === 'walletconnect' && walletConnectProvider) {
     await walletConnectProvider.disconnect();
     walletConnectProvider = null;
+    walletConnectDisplayUriHandlerBound = false;
+    walletConnectDisplayUriCallback = undefined;
   }
   activeWalletSession = null;
 }
@@ -408,26 +480,49 @@ export async function switchToOperatorChain(): Promise<WalletSession> {
 // Returns the WalletConnect session deep-link URL, or null if unavailable.
 export function getWalletOpenUrl(session: WalletSession): string | null {
   if (session.kind !== 'walletconnect' || !walletConnectProvider) return null;
-  const raw = walletConnectProvider as unknown as {
-    session?: { peer?: { metadata?: { redirect?: { native?: string; universal?: string } } } };
-  };
-  const redirect = raw.session?.peer?.metadata?.redirect;
-  return redirect?.universal ?? redirect?.native ?? null;
+  const redirect = walletConnectProvider.session?.peer?.metadata?.redirect;
+  return redirect?.native ?? redirect?.universal ?? null;
 }
 
-// Opens the connected wallet app on iOS via the WalletConnect session redirect URL.
-// Must be called synchronously before any await inside an onClick handler so that
-// iOS Safari does not block the window.open call as an untrusted popup.
-//
-// Opens an intermediate delay page first so that by the time the wallet app
-// launches (~2 s later), the WalletConnect eth_sendTransaction request has had
-// time to reach the relay and will be visible in the wallet immediately.
-export function openWalletForSigning(session: WalletSession): void {
-  const url = getWalletOpenUrl(session);
-  if (url && typeof window !== 'undefined') {
-    const redirect = `/wallet-open.html?delay=2000&to=${encodeURIComponent(url)}`;
-    window.open(redirect, '_blank');
+export function walletNeedsSigningAssist(session: WalletSession): boolean {
+  if (session.kind !== 'walletconnect' || typeof navigator === 'undefined') return false;
+  const userAgent = navigator.userAgent ?? '';
+  const touchMac =
+    typeof navigator.platform === 'string' &&
+    navigator.platform === 'MacIntel' &&
+    typeof navigator.maxTouchPoints === 'number' &&
+    navigator.maxTouchPoints > 1;
+  return /iPad|iPhone|iPod/i.test(userAgent) || touchMac;
+}
+
+let walletOpenTimer: number | null = null;
+
+export function clearWalletOpenTimer(): void {
+  if (walletOpenTimer != null && typeof window !== 'undefined') {
+    window.clearTimeout(walletOpenTimer);
   }
+  walletOpenTimer = null;
+}
+
+export function getWalletApprovalAssistUrl(session: WalletSession): string | null {
+  return getWalletOpenUrl(session);
+}
+
+// Schedules a same-tab handoff back into the connected wallet app after the
+// WalletConnect request has been started from the page.
+export function openWalletForSigning(session: WalletSession, delayMs = 900): string | null {
+  clearWalletOpenTimer();
+  const redirect = getWalletOpenUrl(session);
+  if (!redirect || typeof window === 'undefined' || !walletNeedsSigningAssist(session)) {
+    return redirect;
+  }
+
+  walletOpenTimer = window.setTimeout(() => {
+    walletOpenTimer = null;
+    window.location.assign(redirect);
+  }, delayMs);
+
+  return redirect;
 }
 
 export async function requestWithdrawalTx(args: {

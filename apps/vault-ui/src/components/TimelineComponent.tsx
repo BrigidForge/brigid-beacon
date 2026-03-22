@@ -95,7 +95,7 @@ export function TimelineComponent(props: {
           : null;
 
   return (
-    <div className="rounded-[2rem] border border-white/10 bg-slate-950/40 p-5">
+    <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.22em] text-slate-400">Withdrawal Timeline</p>

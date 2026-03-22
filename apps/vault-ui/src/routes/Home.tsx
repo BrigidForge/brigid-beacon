@@ -52,28 +52,6 @@ export default function Home() {
           </span>
         </button>
       </div>
-
-      <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-3">
-        <FeaturePill color="emerald" label="Status" description="Live vault state from indexed events and vesting math." />
-        <FeaturePill color="sky" label="Activity" description="Full timeline of funding, requests, cancels, and executions." />
-        <FeaturePill color="amber" label="Alerts" description="Email and webhook notifications via the Beacon system." />
-      </div>
-    </div>
-  );
-}
-
-const PILL_STYLES = {
-  emerald: { wrap: 'border-emerald-300/20 bg-emerald-300/10', label: 'text-emerald-200/70', desc: 'text-emerald-50/90' },
-  sky:     { wrap: 'border-sky-300/20 bg-sky-300/10',         label: 'text-sky-200/70',     desc: 'text-sky-50/90' },
-  amber:   { wrap: 'border-amber-300/20 bg-amber-300/10',     label: 'text-amber-200/70',   desc: 'text-amber-50/90' },
-};
-
-function FeaturePill({ color, label, description }: { color: 'emerald' | 'sky' | 'amber'; label: string; description: string }) {
-  const s = PILL_STYLES[color];
-  return (
-    <div className={`rounded-3xl border p-5 ${s.wrap}`}>
-      <p className={`text-sm uppercase tracking-[0.25em] ${s.label}`}>{label}</p>
-      <p className={`mt-2 text-sm leading-6 ${s.desc}`}>{description}</p>
     </div>
   );
 }

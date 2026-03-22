@@ -26,21 +26,34 @@ export function VaultStatusTab(props: {
   proof: DeploymentProof;
 }) {
   const { metadata, status, proof } = props;
-  const totalVested =
-    metadata.totalAllocation === '0'
-      ? '0%'
-      : `${Math.min(100, Math.round((Number(status.vestedAmount) / Number(metadata.totalAllocation)) * 100))}%`;
+  const totalAllocationNum = Number(metadata.totalAllocation);
+  const intervalCount = Number(metadata.intervalCount);
+  const intervalDurationSec = Number(metadata.intervalDuration);
+
+  const remainingToVest = formatTokenAmount(
+    String(Math.max(0, totalAllocationNum - Number(status.vestedAmount))),
+  );
+
+  const vestedIntervals =
+    totalAllocationNum === 0 || intervalCount === 0
+      ? 0
+      : Math.min(intervalCount, Math.round((Number(status.vestedAmount) / totalAllocationNum) * intervalCount));
+
+  const vestedPct =
+    totalAllocationNum === 0
+      ? 0
+      : Math.min(100, Math.round((Number(status.vestedAmount) / totalAllocationNum) * 100));
+
+  const intervalUnit =
+    intervalDurationSec >= 86400 * 25 ? 'month' :
+    intervalDurationSec >= 86400 * 6 ? 'week' :
+    intervalDurationSec >= 3600 ? 'day' : 'interval';
+
+  const totalVestedDisplay = `${vestedIntervals}/${intervalCount} ${intervalUnit}${intervalCount !== 1 ? 's' : ''} (${vestedPct}%)`;
 
   return (
     <section className="space-y-6">
       <VaultSummaryPanel metadata={metadata} />
-
-      {/* Hero: Available to Withdraw */}
-      <div className="rounded-[2rem] border border-sky-300/30 bg-sky-300/10 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
-        <p className="text-xs uppercase tracking-[0.24em] text-sky-300/70">Available to Withdraw</p>
-        <p className="mt-3 text-4xl font-bold text-white">{formatTokenAmount(status.availableToWithdraw)}</p>
-        <p className="mt-2 text-sm text-slate-300">Vested principal currently ready to request a withdrawal.</p>
-      </div>
 
       {/* Vesting + Surplus containers */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -51,20 +64,10 @@ export function VaultStatusTab(props: {
           <p className="mt-1 text-xs text-slate-400">Funds released over time based on the vesting schedule</p>
           <dl className="mt-6 space-y-4">
             <SubStat
-              label="Remaining to Vest"
-              value={formatTokenAmount(status.protectedOutstandingBalance)}
-              hint="Principal still locked in the vesting schedule."
-            />
-            <SubStat
-              label="Total Vested"
-              value={totalVested}
-              hint="Percentage of the total allocation that has vested so far."
-              accent="text-emerald-400"
-            />
-            <SubStat
-              label="Vested Withdrawn"
-              value={formatTokenAmount(status.totalWithdrawn)}
-              hint="Principal already withdrawn through the request flow."
+              label="Funding Status"
+              value={status.funded ? 'Funded' : 'Pending'}
+              hint="Whether Beacon sees the vault as funded and ready for full tracking."
+              accent={status.funded ? 'text-emerald-400' : 'text-amber-400'}
             />
             <SubStat
               label="Total Allocation"
@@ -72,10 +75,26 @@ export function VaultStatusTab(props: {
               hint="Immutable allocation written into the deployment config."
             />
             <SubStat
-              label="Funding"
-              value={status.funded ? 'Funded' : 'Pending'}
-              hint="Whether Beacon sees the vault as funded and ready for full tracking."
-              accent={status.funded ? 'text-emerald-400' : 'text-amber-400'}
+              label="Remaining to Vest"
+              value={remainingToVest}
+              hint="Principal not yet released by the vesting schedule."
+            />
+            <SubStat
+              label="Total Vested"
+              value={totalVestedDisplay}
+              hint="Intervals completed out of total, with overall percentage."
+              accent="text-emerald-400"
+            />
+            <SubStat
+              label="Available to Withdraw"
+              value={formatTokenAmount(status.availableToWithdraw)}
+              hint="Vested principal currently ready to request a withdrawal."
+              accent="text-sky-300"
+            />
+            <SubStat
+              label="Vested Already Withdrawn"
+              value={formatTokenAmount(status.totalWithdrawn)}
+              hint="Principal already withdrawn through the request flow."
             />
           </dl>
         </div>

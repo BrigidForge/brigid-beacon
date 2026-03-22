@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useOperatorSession } from './OperatorSessionProvider';
+
 import type { NormalizedEvent } from '@brigid/beacon-shared-types';
 import { ethers } from 'ethers';
 import { formatDurationSeconds, formatTokenAmount, formatUnixSeconds, shortenAddress } from '../lib/format';
 import {
+  clearWalletOpenTimer,
   cancelWithdrawalTx,
+  DEFAULT_OPERATOR_CHAIN_ID,
   executeWithdrawalTx,
   EXPLORERS,
+  getWalletApprovalAssistUrl,
   openWalletForSigning,
   readOperatorSnapshot,
   requestWithdrawalTx,
+  switchToOperatorChain,
   type OperatorVaultSnapshot,
   type WalletSession,
   type WalletConnectionKind,
@@ -123,11 +127,27 @@ export function TransactionsTab(props: {
   const [withdrawalType, setWithdrawalType] = useState<'protected' | 'excess'>('protected');
   const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1000));
   const [requestOverride, setRequestOverride] = useState<RequestLifecycleView | null>(null);
+  const [walletApproveUrl, setWalletApproveUrl] = useState<string | null>(null);
   const pendingScrollRestoreRef = useRef<number | null>(null);
+
+  // Must be called synchronously before the first await in a click handler.
+  // For iOS WalletConnect, open the handoff page in a trusted user gesture
+  // so Safari allows the deep link back into the wallet app.
+  function startWalletApprovalFlow(session: WalletSession) {
+    const assistUrl = getWalletApprovalAssistUrl(session);
+    setWalletApproveUrl(assistUrl);
+    openWalletForSigning(session);
+  }
+
+  function clearWalletApprovalFlow() {
+    clearWalletOpenTimer();
+    setWalletApproveUrl(null);
+  }
 
   function restoreScrollPosition() {
     if (pendingScrollRestoreRef.current == null) return;
     const targetY = pendingScrollRestoreRef.current;
+    pendingScrollRestoreRef.current = null; // clear so a second call after layout changes is a no-op
     const restore = () => { window.scrollTo({ top: targetY, behavior: 'auto' }); };
     restore(); window.setTimeout(restore, 0); window.setTimeout(restore, 120); window.setTimeout(restore, 300);
   }
@@ -169,7 +189,7 @@ export function TransactionsTab(props: {
   const latestRequest = requestOverride ?? derivedLatestRequest;
   const currentRequest = latestRequest?.outcome === 'active' ? latestRequest : null;
   const pending = currentRequest != null && currentRequest.expiresAt > nowSeconds;
-  const cancelEnd = pending && currentRequest ? currentRequest.requestedAt + snapshot!.cancelWindow : 0;
+  const cancelEnd = pending && currentRequest && snapshot ? currentRequest.requestedAt + snapshot.cancelWindow : 0;
   const state = !pending || !snapshot || !currentRequest
     ? 'idle'
     : nowSeconds < cancelEnd ? 'cancel'
@@ -190,62 +210,78 @@ export function TransactionsTab(props: {
   const canRequest = snapshot != null && walletConnected && !pending && amountInput.trim().length > 0 && purposeInput.trim().length > 0;
   const requestButtonDisabled = !canRequest || busy || (() => { try { return ethers.parseUnits(amountInput || '0', 18) > selectedAvailable; } catch { return true; } })();
 
+  async function ensureCorrectChain(connection: WalletSession): Promise<WalletSession> {
+    if (!snapshot || connection.chainId === snapshot.chainId) return connection;
+
+    if (snapshot.chainId !== DEFAULT_OPERATOR_CHAIN_ID) {
+      throw new Error(`Unsupported vault chain ${snapshot.chainId}.`);
+    }
+
+    setMessage('Switching wallet to BNB Smart Chain Testnet...');
+    const switchPromise = switchToOperatorChain();
+    startWalletApprovalFlow(connection);
+    const updated = await switchPromise;
+    clearWalletApprovalFlow();
+    return updated;
+  }
+
   async function handleRequestWithdrawal() {
     if (!props.walletSession?.address || !canRequest) return;
-    const connection = props.walletSession;
-    preserveScrollPosition(); setBusy(true); setError(null);
-    setMessage(`Submitting ${withdrawalType} withdrawal request...`);
-    openWalletForSigning(connection); // must be before first await (iOS gesture restriction)
+    let connection = props.walletSession;
+    preserveScrollPosition(); setBusy(true); setError(null); setMessage(null);
     try {
+      connection = await ensureCorrectChain(connection);
       const purposeHash = ethers.id(purposeInput.trim());
       storePurpose(purposeHash, purposeInput.trim());
-      const txHash = await requestWithdrawalTx({ vaultAddress: props.vaultAddress, signer: connection.signer, amountInput: amountInput.trim(), bucket: withdrawalType, purposeText: purposeInput.trim() });
+      const txHashPromise = requestWithdrawalTx({
+        vaultAddress: props.vaultAddress,
+        signer: connection.signer,
+        amountInput: amountInput.trim(),
+        bucket: withdrawalType,
+        purposeText: purposeInput.trim(),
+      });
+      startWalletApprovalFlow(connection);
+      const txHash = await txHashPromise;
       const refreshedSnapshot = await readOperatorSnapshot(props.vaultAddress);
       setSnapshot(refreshedSnapshot);
       setRequestOverride({ amount: refreshedSnapshot.pendingWithdrawal.amount, purposeHash: refreshedSnapshot.pendingWithdrawal.purposeHash, requestedAt: refreshedSnapshot.pendingWithdrawal.requestedAt, executableAt: refreshedSnapshot.pendingWithdrawal.executableAt, expiresAt: refreshedSnapshot.pendingWithdrawal.expiresAt, requestType: withdrawalType, outcome: 'active', settledAt: null });
       setAmountInput(''); setPurposeInput('');
       setMessage(`Withdrawal request confirmed: ${txHash}`);
       restoreScrollPosition(); void refresh({ background: true });
-    } catch (err) { setMessage(null); setError(err instanceof Error ? err.message : String(err)); }
-    finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    finally { setBusy(false); clearWalletApprovalFlow(); }
   }
 
   async function handleCancelWithdrawal() {
     if (!props.walletSession?.address) return;
-    const connection = props.walletSession;
-    preserveScrollPosition(); setBusy(true); setError(null);
-    openWalletForSigning(connection); // must be before first await (iOS gesture restriction)
+    let connection = props.walletSession;
+    preserveScrollPosition(); setBusy(true); setError(null); setMessage(null);
     try {
-      const txHash = await cancelWithdrawalTx(props.vaultAddress, connection.signer);
+      connection = await ensureCorrectChain(connection);
+      const txHashPromise = cancelWithdrawalTx(props.vaultAddress, connection.signer);
+      startWalletApprovalFlow(connection);
+      const txHash = await txHashPromise;
       if (latestRequest) setRequestOverride({ ...latestRequest, outcome: 'canceled', settledAt: Math.floor(Date.now() / 1000) });
       setMessage(`Withdrawal canceled: ${txHash}`);
       restoreScrollPosition(); void refresh({ background: true });
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
-    finally { setBusy(false); }
+    finally { setBusy(false); clearWalletApprovalFlow(); }
   }
 
   async function handleExecuteWithdrawal() {
     if (!props.walletSession?.address) return;
-    const connection = props.walletSession;
-    preserveScrollPosition(); setBusy(true); setError(null);
-    openWalletForSigning(connection); // must be before first await (iOS gesture restriction)
+    let connection = props.walletSession;
+    preserveScrollPosition(); setBusy(true); setError(null); setMessage(null);
     try {
-      const txHash = await executeWithdrawalTx(props.vaultAddress, connection.signer);
+      connection = await ensureCorrectChain(connection);
+      const txHashPromise = executeWithdrawalTx(props.vaultAddress, connection.signer);
+      startWalletApprovalFlow(connection);
+      const txHash = await txHashPromise;
       if (latestRequest) setRequestOverride({ ...latestRequest, outcome: 'executed', settledAt: Math.floor(Date.now() / 1000) });
       setMessage(`Withdrawal executed: ${txHash}`);
       restoreScrollPosition(); void refresh({ background: true });
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
-    finally { setBusy(false); }
-  }
-
-  const { switchChain, walletBusy } = useOperatorSession();
-  const chainMismatch = props.walletSession != null && snapshot != null && props.walletSession.chainId !== snapshot.chainId;
-
-  async function handleSwitchChain() {
-    openWalletForSigning(props.walletSession!); // open wallet before await for iOS
-    try {
-      await switchChain();
-    } catch { /* error displayed via context */ }
+    finally { setBusy(false); clearWalletApprovalFlow(); }
   }
 
   if (loading) return <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 text-slate-300">Loading transaction controls...</div>;
@@ -266,40 +302,18 @@ export function TransactionsTab(props: {
 
   return (
     <section className="space-y-6">
-      {chainMismatch && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-amber-300/30 bg-amber-300/10 px-6 py-4">
-          <div>
-            <p className="text-sm font-semibold text-amber-200">Wrong network</p>
-            <p className="mt-1 text-sm text-slate-300">
-              Your wallet is on chain <span className="font-mono text-white">{props.walletSession!.chainId}</span> but this vault is on chain <span className="font-mono text-white">{snapshot!.chainId}</span>. Switch to BSC Testnet to submit transactions.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleSwitchChain()}
-            disabled={walletBusy}
-            className="shrink-0 rounded-2xl bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:opacity-60"
-          >
-            Switch Network
-          </button>
-        </div>
-      )}
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Protected Available</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Vested Available</p>
           <p className="mt-3 text-2xl font-semibold text-white">{formatTokenAmount(snapshot.availableToWithdraw.toString())} {snapshot.tokenSymbol}</p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Excess Available</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Surplus Available</p>
           <p className="mt-3 text-2xl font-semibold text-white">{snapshot.excessSupported ? `${formatTokenAmount(snapshot.excessAvailable.toString())} ${snapshot.tokenSymbol}` : 'Unsupported'}</p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Withdrawal Delay</p>
           <p className="mt-3 text-2xl font-semibold text-white">{formatDurationSeconds(String(snapshot.withdrawalDelay))}</p>
-        </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Current Block</p>
-          <p className="mt-3 text-2xl font-semibold text-white">#{snapshot.currentBlock.toLocaleString()}</p>
         </div>
       </div>
 
@@ -307,16 +321,16 @@ export function TransactionsTab(props: {
         <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
           <p className="text-sm uppercase tracking-[0.25em] text-amber-200/70">Withdrawals</p>
           <h2 className="mt-2 text-3xl font-semibold text-white">Owner withdrawal controls</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">Choose the withdrawal bucket, enter an amount, submit a purpose, and manage the pending request lifecycle.</p>
+          <p className="mt-3 text-sm leading-6 text-slate-300">Choose the withdrawal allocation,enter an amount, submit a purpose, and manage the pending request lifecycle.</p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <label className="rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-slate-200">
-              <span className="block text-xs uppercase tracking-[0.22em] text-slate-400">Bucket</span>
+              <span className="block text-xs uppercase tracking-[0.22em] text-slate-400">Select Allocation</span>
               <DisabledWalletHint enabled={walletConnected} className="group relative mt-3 block">
                 <select value={withdrawalType} onChange={(e) => setWithdrawalType(e.target.value as 'protected' | 'excess')} disabled={!walletConnected || pending || busy}
                   className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none">
-                  <option value="protected">Protected vesting</option>
-                  <option value="excess" disabled={!snapshot.excessSupported}>Excess treasury</option>
+                  <option value="protected">Vested Funds</option>
+                  <option value="excess" disabled={!snapshot.excessSupported}>Surplus Funds</option>
                 </select>
               </DisabledWalletHint>
             </label>
@@ -340,25 +354,43 @@ export function TransactionsTab(props: {
           <div className="mt-5 flex flex-wrap gap-3">
             <DisabledWalletHint enabled={walletConnected}>
               <button type="button" onClick={() => void handleRequestWithdrawal()} disabled={requestButtonDisabled}
-                className={`rounded-2xl bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60 ${requestButtonActive ? 'animate-pulse shadow-[0_0_28px_rgba(251,191,36,0.35)]' : ''}`}>
+                className={`rounded-2xl bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-35 ${requestButtonActive ? 'animate-pulse shadow-[0_0_28px_rgba(251,191,36,0.35)]' : ''}`}>
                 Request Withdrawal
               </button>
             </DisabledWalletHint>
             <DisabledWalletHint enabled={walletConnected && walletMatchesOwner}>
               <button type="button" onClick={() => void handleCancelWithdrawal()} disabled={!walletMatchesOwner || state !== 'cancel' || busy}
-                className={`rounded-2xl border border-rose-500/60 bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50 ${cancelButtonActive ? 'animate-pulse shadow-[0_0_28px_rgba(244,63,94,0.32)]' : ''}`}>
+                className={`rounded-2xl border border-rose-500/60 bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-35 ${cancelButtonActive ? 'animate-pulse shadow-[0_0_28px_rgba(244,63,94,0.32)]' : ''}`}>
                 Cancel Withdrawal
               </button>
             </DisabledWalletHint>
             <DisabledWalletHint enabled={walletConnected}>
               <button type="button" onClick={() => void handleExecuteWithdrawal()} disabled={state !== 'exec' || busy || !walletConnected}
-                className={`rounded-2xl border border-emerald-300/70 bg-emerald-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50 ${executeButtonActive ? 'animate-pulse shadow-[0_0_28px_rgba(52,211,153,0.32)]' : ''}`}>
+                className={`rounded-2xl border border-emerald-300/70 bg-emerald-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-35 ${executeButtonActive ? 'animate-pulse shadow-[0_0_28px_rgba(52,211,153,0.32)]' : ''}`}>
                 Execute Withdrawal
               </button>
             </DisabledWalletHint>
           </div>
-          {message ? <p className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-50">{message}</p> : null}
-          {error ? <p className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-50">{error}</p> : null}
+          {busy && (
+            <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm">
+              <p className="text-amber-100">Connecting to wallet...</p>
+              {walletApproveUrl ? (
+                <a
+                  href={walletApproveUrl}
+                  className="mt-2 flex items-center justify-between text-amber-200 transition hover:text-amber-100"
+                >
+                  <span>Open MetaMask manually if it does not launch</span>
+                  <span className="ml-3 shrink-0">→</span>
+                </a>
+              ) : null}
+            </div>
+          )}
+          {message ? (
+            <p className="mt-4 break-all rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-50">
+              {message}
+            </p>
+          ) : null}
+          {error ? <p className="mt-4 break-all rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-50">{error}</p> : null}
         </div>
 
         <div className="space-y-6">
