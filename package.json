@@ -18,9 +18,11 @@
     "dev:up": "node scripts/dev-runtime.mjs up",
     "dev:down": "node scripts/dev-runtime.mjs down",
     "dev:status": "node scripts/dev-runtime.mjs status",
-    "db:generate": "cd prisma && npx prisma generate",
-    "db:push": "cd prisma && npx prisma db push",
-    "db:migrate": "cd prisma && npx prisma migrate dev"
+    "db:generate": "node scripts/run-prisma-command.mjs generate",
+    "db:push": "node scripts/run-prisma-command.mjs db-push",
+    "db:migrate": "node scripts/run-prisma-command.mjs migrate-dev",
+    "db:push:prod": "node scripts/run-prisma-command.mjs prod-db-push",
+    "db:migrate:prod": "node scripts/run-prisma-command.mjs prod-migrate-deploy"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

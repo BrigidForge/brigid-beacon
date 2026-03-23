@@ -141,6 +141,43 @@ Additional server changes are usually only required if one of these changes:
 
 Those are runtime changes, not ordinary app-code deploys.
 
+## Database Safety Guardrails
+
+Normal Beacon deploys must not mutate production schema or production data structure.
+
+- `scripts/deploy-hosted.sh` does not run Prisma schema commands
+- normal `git push` / deploy flow should only update code, build assets, and restart services
+- local `npm run db:push` and `npm run db:migrate` now refuse production-like targets by default
+
+Intentional production schema changes must use:
+
+- `MIGRATION_DATABASE_URL`
+- `ALLOW_PROD_DB_WRITE=yes`
+- `PROD_DB_TARGET_CONFIRMATION=beacon-production`
+
+Guarded production commands:
+
+```bash
+ALLOW_PROD_DB_WRITE=yes \
+PROD_DB_TARGET_CONFIRMATION=beacon-production \
+MIGRATION_DATABASE_URL=postgresql://... \
+npm run db:push:prod
+```
+
+or:
+
+```bash
+ALLOW_PROD_DB_WRITE=yes \
+PROD_DB_TARGET_CONFIRMATION=beacon-production \
+MIGRATION_DATABASE_URL=postgresql://... \
+npm run db:migrate:prod
+```
+
+Recommended operational split:
+
+- `DATABASE_URL` for app runtime only
+- `MIGRATION_DATABASE_URL` for explicit admin-led schema changes only
+
 ## Current Canonical Runtime Facts
 
 Current reference deployment assumptions:

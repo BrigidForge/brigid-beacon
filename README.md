@@ -73,6 +73,17 @@ npm run db:generate
 npm run db:push   # or db:migrate
 ```
 
+Database safety guardrails:
+
+- `npm run db:push` and `npm run db:migrate` now refuse production-like targets by default.
+- intentional production schema changes must use `MIGRATION_DATABASE_URL`
+- production writes require both:
+  - `ALLOW_PROD_DB_WRITE=yes`
+  - `PROD_DB_TARGET_CONFIRMATION=beacon-production`
+- guarded production commands:
+  - `npm run db:push:prod`
+  - `npm run db:migrate:prod`
+
 Recommended local parity env:
 
 ```bash
@@ -88,6 +99,8 @@ VITE_API_BASE_URL=http://localhost:3000
 VITE_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 VITE_WALLETCONNECT_CDN_URL=https://esm.sh/@walletconnect/ethereum-provider@2.23.8
 ```
+
+Never point local `DATABASE_URL` at the live production `beacon` database. Keep runtime DB access and production migration DB access separate.
 
 Operator mobile wallet note:
 
