@@ -99,6 +99,7 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
           expiresAt: expiresAt.toISOString(),
         });
 
+    const isPreviewMode = !alreadyConfirmed && emailDelivery.deliveryMode !== 'brevo';
     return {
       status: alreadyConfirmed ? 'confirmed' : 'pending_confirmation',
       vaultAddress,
@@ -111,10 +112,12 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
         : emailDelivery.deliveryMode === 'brevo'
           ? 'Confirmation email sent through Brevo.'
           : 'Brevo email delivery is not active, so Beacon is returning a preview confirmation link for local use.',
-      previewConfirmToken: confirmationToken,
-      previewConfirmUrl: urls.confirmUrl,
-      previewUnsubscribeToken: unsubscribeToken,
-      previewUnsubscribeUrl: urls.unsubscribeUrl,
+      ...(isPreviewMode && {
+        previewConfirmToken: confirmationToken,
+        previewConfirmUrl: urls.confirmUrl,
+        previewUnsubscribeToken: unsubscribeToken,
+        previewUnsubscribeUrl: urls.unsubscribeUrl,
+      }),
     };
   });
 
@@ -172,6 +175,20 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       return reply.status(404).send({ error: 'Not found', message: 'Subscription was not found for this management token.' });
     }
 
+    const unsubscribeToken = ctx.encodePublicEmailActionToken({
+      action: 'unsubscribe',
+      subscriptionId: subscription.id,
+      vaultAddress: subscription.vaultAddress,
+      email: subscription.follower.email,
+      expiresAt: payload.expiresAt,
+    });
+    const unsubscribeUrl = unsubscribeToken
+      ? buildPublicActionUrl(ctx.config, subscription.vaultAddress, {
+          action: 'unsubscribe',
+          token: unsubscribeToken,
+        })
+      : null;
+
     return {
       vaultAddress: subscription.vaultAddress,
       email: subscription.follower.email,
@@ -181,6 +198,8 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       eventKinds: Array.isArray(subscription.eventKindsJson) ? subscription.eventKindsJson : [],
       confirmedAt: subscription.confirmedAt?.toISOString() ?? null,
       disabledAt: subscription.disabledAt?.toISOString() ?? null,
+      unsubscribeToken,
+      unsubscribeUrl,
     };
   });
 
@@ -324,8 +343,10 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       vaultAddress,
       expiresAt,
       deliveryMode: emailDelivery.deliveryMode,
-      previewManageToken: manageToken,
-      previewManageUrl: manageUrl,
+      ...(emailDelivery.deliveryMode !== 'brevo' && {
+        previewManageToken: manageToken,
+        previewManageUrl: manageUrl,
+      }),
       message:
         emailDelivery.deliveryMode === 'brevo'
           ? 'A secure management link has been emailed to you.'

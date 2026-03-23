@@ -310,6 +310,8 @@ export type PublicEmailSubscriptionStatusResponse = {
   eventKinds: string[];
   confirmedAt?: string | null;
   disabledAt?: string | null;
+  unsubscribeToken?: string | null;
+  unsubscribeUrl?: string | null;
 };
 
 export async function fetchVaultBundle(address: string): Promise<{

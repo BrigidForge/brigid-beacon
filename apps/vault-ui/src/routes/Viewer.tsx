@@ -48,6 +48,16 @@ export default function Viewer() {
   } | null>(null);
 
   useEffect(() => {
+    if (
+      searchParams.has('confirmEmailToken') ||
+      searchParams.has('unsubscribeEmailToken') ||
+      searchParams.has('manageEmailToken')
+    ) {
+      setTab('notifications');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!vaultAddress) return;
     let cancelled = false;
 
@@ -381,7 +391,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
   const [message, setMessage] = useState('');
   const [existingStatus, setExistingStatus] = useState<PublicEmailSubscriptionStatusResponse | null>(null);
   const [manageMode, setManageMode] = useState(false);
-  const [manageToken, setManageToken] = useState<string | null>(null);
+  const [managedUnsubscribeToken, setManagedUnsubscribeToken] = useState<string | null>(null);
   const [manageLinkPreview, setManageLinkPreview] = useState<PublicEmailManageLinkResponse | null>(null);
 
   useEffect(() => {
@@ -389,7 +399,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
     if (email.trim().toLowerCase() !== existingStatus.email.toLowerCase()) {
       setExistingStatus(null);
       setManageMode(false);
-      setManageToken(null);
+      setManagedUnsubscribeToken(null);
       setManageLinkPreview(null);
     }
   }, [email, existingStatus]);
@@ -411,7 +421,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
         setSelected(subscriptionStatus.eventKinds);
         setExistingStatus(subscriptionStatus);
         setManageMode(true);
-        setManageToken(verifiedManageToken);
+        setManagedUnsubscribeToken(subscriptionStatus.unsubscribeToken ?? null);
         setMessage('Secure management link verified. You can update or unsubscribe from this subscription below.');
         setStatus('idle');
       } catch (err) {
@@ -517,11 +527,11 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
   }
 
   async function handleManagedUnsubscribe() {
-    if (!manageToken) return;
+    if (!managedUnsubscribeToken) return;
     setStatus('loading');
     setMessage('');
     try {
-      const result = await unsubscribePublicEmailSubscription(manageToken);
+      const result = await unsubscribePublicEmailSubscription(managedUnsubscribeToken);
       setExistingStatus({
         vaultAddress: result.vaultAddress,
         email: result.email,
@@ -533,7 +543,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
         disabledAt: result.unsubscribedAt,
       });
       setManageMode(false);
-      setManageToken(null);
+      setManagedUnsubscribeToken(null);
       setStatus('success');
       setMessage(`${result.email} has been unsubscribed from vault email notifications.`);
     } catch (err) {
