@@ -1037,4 +1037,33 @@ test('Beacon API issues secure manage links and rejects unsubscribe tokens for m
   });
   assert.equal(unsubscribeResponse.statusCode, 200);
   assert.equal(unsubscribeResponse.json().unsubscribed, true);
+
+  const statusAfterUnsubscribe = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/email-subscriptions/status?vaultAddress=${vaultAddress}&email=manage%40example.com`,
+  });
+  assert.equal(statusAfterUnsubscribe.statusCode, 200);
+  const unsubscribedStatus = statusAfterUnsubscribe.json();
+  assert.equal(unsubscribedStatus.subscribed, false);
+  assert.equal(unsubscribedStatus.disabled, true);
+
+  const staleManageResponse = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/email-subscriptions/manage?token=${encodeURIComponent(manageLinkPayload.previewManageToken)}`,
+  });
+  assert.equal(staleManageResponse.statusCode, 404);
+
+  const resubscribeResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions',
+    payload: {
+      vaultAddress,
+      email: 'manage@example.com',
+      eventKinds: ['request_expired'],
+    },
+  });
+  assert.equal(resubscribeResponse.statusCode, 200);
+  const resubscribePayload = resubscribeResponse.json();
+  assert.equal(resubscribePayload.status, 'pending_confirmation');
+  assert.equal(resubscribePayload.deliveryMode, 'preview');
 });

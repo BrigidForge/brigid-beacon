@@ -468,6 +468,12 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || selected.length === 0) return;
+
+    if (existingStatus?.confirmed && !existingStatus.disabled && !manageMode) {
+      await handleSendManageLink();
+      return;
+    }
+
     setStatus('loading');
     try {
       const normalizedEmail = email.trim().toLowerCase();
@@ -573,7 +579,11 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
       const result = await requestPublicEmailManageLink(vaultAddress, email.trim());
       setManageLinkPreview(result);
       setStatus('success');
-      setMessage(result.message);
+      setMessage(
+        result.deliveryMode === 'brevo'
+          ? `${result.message} Check your inbox and spam folder if you do not see it right away.`
+          : result.message,
+      );
     } catch (err) {
       setStatus('error');
       setMessage(err instanceof Error ? err.message : 'Unable to send a secure management link.');
@@ -590,7 +600,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
       setExistingStatus({
         vaultAddress: result.vaultAddress,
         email: result.email,
-        subscribed: true,
+        subscribed: false,
         confirmed: false,
         disabled: true,
         eventKinds: [],
@@ -607,7 +617,17 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
     }
   }
 
-  const actionLabel = manageMode ? 'Update subscriptions' : 'Subscribe to alerts';
+  const canRequestManageLink =
+    existingStatus?.confirmed === true && !existingStatus.disabled && !manageMode;
+  const isPendingConfirmation =
+    existingStatus?.subscribed === true && !existingStatus.disabled && existingStatus.confirmed !== true;
+  const primaryActionLabel = manageMode
+    ? 'Save subscription changes'
+    : canRequestManageLink
+      ? 'Email me a secure manage link'
+      : isPendingConfirmation
+        ? 'Refresh confirmation email'
+        : 'Subscribe to alerts';
   const currentStatusLabel =
     existingStatus == null
       ? null
@@ -686,7 +706,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
     <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
       <p className="text-xs uppercase tracking-widest text-slate-400">Email Alerts</p>
       <p className="mt-2 text-sm text-slate-400">
-        Receive email notifications when vault events occur. If this email is already subscribed, Beacon will load the current selections so you can update them without another confirmation step.
+        Receive email notifications when vault events occur. New subscriptions must be confirmed by email. Confirmed subscriptions are changed through a secure manage link sent to that email address.
       </p>
 
       <form onSubmit={(e) => { void handleSubmit(e); }} className="mt-6 flex flex-col gap-5">
@@ -721,6 +741,16 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
                 Check your inbox and spam folder for the confirmation email. If it never arrived, you can resend it below.
               </p>
             ) : null}
+            {canRequestManageLink ? (
+              <p className="mt-2 text-emerald-50/90">
+                This subscription is active. To update or cancel it, request a secure management link below.
+              </p>
+            ) : null}
+            {existingStatus?.disabled ? (
+              <p className="mt-2 text-rose-50/90">
+                This address is currently unsubscribed for this vault. Submitting again will start a fresh subscription and send a new confirmation email.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -733,12 +763,20 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
                   type="checkbox"
                   checked={selected.includes(kind)}
                   onChange={() => toggle(kind)}
+                  disabled={canRequestManageLink}
                   className="accent-amber-300"
                 />
-                <span className="text-sm text-slate-300">{EVENT_LABELS[kind] ?? kind}</span>
+                <span className={`text-sm ${canRequestManageLink ? 'text-slate-500' : 'text-slate-300'}`}>
+                  {EVENT_LABELS[kind] ?? kind}
+                </span>
               </label>
             ))}
           </div>
+          {canRequestManageLink ? (
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              Event choices are locked until you open the secure manage link sent to this email.
+            </p>
+          ) : null}
         </div>
 
         {status === 'error' && (
@@ -748,16 +786,6 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
         {status === 'idle' && message ? (
           <div className="rounded-2xl border border-sky-300/20 bg-sky-300/10 px-4 py-3 text-sm text-sky-100">
             <p>{message}</p>
-            {existingStatus?.confirmed && !manageMode && message === 'Email Address Already Subscribed. If you would like to make changes to an existing subscription click here.' ? (
-              <button
-                type="button"
-                onClick={() => void handleSendManageLink()}
-                disabled={!email.trim()}
-                className="mt-2 text-sm underline decoration-sky-300/60 underline-offset-4 transition hover:text-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Click here
-              </button>
-            ) : null}
           </div>
         ) : null}
 
@@ -766,15 +794,14 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
           disabled={
             !email.trim() ||
             selected.length === 0 ||
-            status === 'loading' ||
-            (existingStatus?.confirmed === true && !manageMode)
+            status === 'loading'
           }
           className="rounded-2xl bg-amber-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {status === 'loading' ? 'Working…' : actionLabel}
+          {status === 'loading' ? 'Working…' : primaryActionLabel}
         </button>
 
-        {existingStatus?.subscribed && !existingStatus.disabled && !existingStatus.confirmed && !manageMode ? (
+        {isPendingConfirmation && !manageMode ? (
           <button
             type="button"
             onClick={() => void handleResendConfirmation()}
@@ -782,6 +809,17 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
             className="w-fit text-sm text-sky-300 underline decoration-sky-400/60 underline-offset-4 transition hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Re-send confirmation email
+          </button>
+        ) : null}
+
+        {canRequestManageLink ? (
+          <button
+            type="button"
+            onClick={() => void handleSendManageLink()}
+            disabled={!email.trim() || status === 'loading'}
+            className="w-fit text-sm text-sky-300 underline decoration-sky-400/60 underline-offset-4 transition hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Send another secure manage link
           </button>
         ) : null}
 

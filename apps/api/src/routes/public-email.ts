@@ -55,7 +55,7 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
             data: {
               eventKindsJson: eventKinds,
               disabledAt: null,
-              confirmedAt: existingSubscription.confirmedAt,
+              confirmedAt: existingSubscription.disabledAt == null ? existingSubscription.confirmedAt : null,
               unsubscribeTokenHash: existingSubscription.unsubscribeTokenHash || tokenDigest(unsubscribeToken),
             },
           })
@@ -85,7 +85,8 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       confirmToken: confirmationToken,
       unsubscribeToken,
     });
-    const alreadyConfirmed = subscription.confirmedAt != null && follower.verifiedAt != null;
+    const alreadyConfirmed =
+      subscription.disabledAt == null && subscription.confirmedAt != null && follower.verifiedAt != null;
     const emailDelivery = alreadyConfirmed
       ? { deliveryMode: 'confirmed' as const }
       : await ctx.sendPublicConfirmationEmail({
@@ -144,11 +145,12 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       },
     });
 
+    const isActive = subscription != null && subscription.disabledAt == null;
     return {
       vaultAddress,
       email,
-      subscribed: subscription != null,
-      confirmed: subscription?.confirmedAt != null && follower.verifiedAt != null,
+      subscribed: isActive,
+      confirmed: isActive && subscription?.confirmedAt != null && follower.verifiedAt != null,
       disabled: subscription?.disabledAt != null,
       eventKinds: Array.isArray(subscription?.eventKindsJson) ? subscription.eventKindsJson : [],
       confirmedAt: subscription?.confirmedAt?.toISOString() ?? null,
@@ -171,7 +173,12 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       where: { id: payload.subscriptionId },
       include: { follower: true },
     });
-    if (!subscription || subscription.vaultAddress !== payload.vaultAddress || subscription.follower.email !== payload.email) {
+    if (
+      !subscription ||
+      subscription.disabledAt != null ||
+      subscription.vaultAddress !== payload.vaultAddress ||
+      subscription.follower.email !== payload.email
+    ) {
       return reply.status(404).send({ error: 'Not found', message: 'Subscription was not found for this management token.' });
     }
 
@@ -194,10 +201,10 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       email: subscription.follower.email,
       subscribed: true,
       confirmed: subscription.confirmedAt != null && subscription.follower.verifiedAt != null,
-      disabled: subscription.disabledAt != null,
+      disabled: false,
       eventKinds: Array.isArray(subscription.eventKindsJson) ? subscription.eventKindsJson : [],
       confirmedAt: subscription.confirmedAt?.toISOString() ?? null,
-      disabledAt: subscription.disabledAt?.toISOString() ?? null,
+      disabledAt: null,
       unsubscribeToken,
       unsubscribeUrl,
     };
