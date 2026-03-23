@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  buildPublicActionUrl,
   PUBLIC_EMAIL_CONFIRM_TTL_MS,
   buildPublicConfirmationUrls,
   normalizeAddress,
@@ -258,6 +259,77 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       email: subscription.follower.email,
       vaultAddress: subscription.vaultAddress,
       unsubscribedAt: now.toISOString(),
+    };
+  });
+
+  app.post('/api/v1/public/email-subscriptions/manage-link', async (req, reply) => {
+    const body = req.body as { vaultAddress?: string; email?: string };
+    const vaultAddress = normalizeAddress(body.vaultAddress ?? '');
+    const email = normalizeEmail(body.email);
+
+    if (!vaultAddress || !email) {
+      return reply.status(400).send({
+        error: 'Bad request',
+        message: 'vaultAddress and email are required.',
+      });
+    }
+
+    const follower = await ctx.prisma.publicEmailFollower.findUnique({ where: { email } });
+    if (!follower) {
+      return reply.status(404).send({ error: 'Not found', message: 'No email subscription exists for that address.' });
+    }
+
+    const subscription = await ctx.prisma.publicEmailSubscription.findUnique({
+      where: {
+        followerId_vaultAddress: {
+          followerId: follower.id,
+          vaultAddress,
+        },
+      },
+    });
+
+    if (!subscription || subscription.disabledAt != null || subscription.confirmedAt == null || follower.verifiedAt == null) {
+      return reply.status(404).send({ error: 'Not found', message: 'No active confirmed email subscription exists for that address on this vault.' });
+    }
+
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const manageToken = ctx.encodePublicEmailActionToken({
+      action: 'manage',
+      subscriptionId: subscription.id,
+      vaultAddress,
+      email,
+      expiresAt,
+    });
+
+    if (!manageToken) {
+      return reply.status(500).send({ error: 'Server error', message: 'Public email link management is not configured.' });
+    }
+
+    const manageUrl = buildPublicActionUrl(ctx.config, vaultAddress, {
+      action: 'manage',
+      token: manageToken,
+    });
+
+    const emailDelivery = await ctx.sendPublicManageLinkEmail({
+      to: email,
+      vaultAddress,
+      manageUrl,
+      manageToken,
+      expiresAt,
+    });
+
+    return {
+      sent: true,
+      email,
+      vaultAddress,
+      expiresAt,
+      deliveryMode: emailDelivery.deliveryMode,
+      previewManageToken: manageToken,
+      previewManageUrl: manageUrl,
+      message:
+        emailDelivery.deliveryMode === 'brevo'
+          ? 'A secure management link has been emailed to you.'
+          : 'Email delivery is not active, so Beacon is returning a preview management link for local use.',
     };
   });
 }

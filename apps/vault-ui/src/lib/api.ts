@@ -290,6 +290,17 @@ export type PublicEmailUnsubscribeResponse = {
   unsubscribedAt: string;
 };
 
+export type PublicEmailManageLinkResponse = {
+  sent: boolean;
+  email: string;
+  vaultAddress: string;
+  expiresAt: string;
+  deliveryMode: 'preview' | 'brevo';
+  previewManageToken: string;
+  previewManageUrl: string | null;
+  message: string;
+};
+
 export type PublicEmailSubscriptionStatusResponse = {
   vaultAddress: string;
   email: string;
@@ -516,6 +527,16 @@ export async function unsubscribePublicEmailSubscription(token: string): Promise
   return sendJson<PublicEmailUnsubscribeResponse>('/api/v1/public/email-subscriptions/unsubscribe', {
     method: 'POST',
     body: JSON.stringify({ token }),
+  });
+}
+
+export async function requestPublicEmailManageLink(
+  vaultAddress: string,
+  email: string,
+): Promise<PublicEmailManageLinkResponse> {
+  return sendJson<PublicEmailManageLinkResponse>('/api/v1/public/email-subscriptions/manage-link', {
+    method: 'POST',
+    body: JSON.stringify({ vaultAddress, email }),
   });
 }
 

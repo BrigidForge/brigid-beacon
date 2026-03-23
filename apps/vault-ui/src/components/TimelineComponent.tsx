@@ -112,8 +112,7 @@ export function TimelineComponent(props: {
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {segments.map((segment) => (
           <div key={segment.label}>
-            <div className="mb-2 flex min-h-[2.5rem] items-start justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              <span className="leading-5">{segment.label}</span>
+            <div className="mb-2 flex min-h-[1.25rem] items-center justify-end gap-3 text-[11px] uppercase tracking-[0.16em] text-slate-400">
               {!isSettled ? (
                 <span className={`shrink-0 leading-5 ${segment.complete ? 'text-emerald-200' : segment.active ? 'text-white' : 'text-slate-500'}`}>
                   {Math.round(segment.progress)}%
@@ -126,6 +125,9 @@ export function TimelineComponent(props: {
                 style={{ width: `${segment.progress}%` }}
               />
             </div>
+            <p className="mt-2 min-h-[2.5rem] text-[11px] uppercase tracking-[0.16em] text-slate-400">
+              {segment.label}
+            </p>
           </div>
         ))}
       </div>

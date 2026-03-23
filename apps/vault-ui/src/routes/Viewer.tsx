@@ -5,6 +5,11 @@ import {
   fetchVaultBundle,
   createPublicEmailSubscription,
   confirmPublicEmailSubscription,
+  fetchManagedPublicEmailSubscriptionStatus,
+  fetchPublicEmailSubscriptionStatus,
+  requestPublicEmailManageLink,
+  type PublicEmailManageLinkResponse,
+  type PublicEmailSubscriptionStatusResponse,
   unsubscribePublicEmailSubscription,
 } from '../lib/api';
 import {
@@ -12,10 +17,10 @@ import {
   formatUnixSeconds,
   formatDurationSeconds,
   formatRelativeCountdown,
-  formatStateLabel,
   shortenHash,
 } from '../lib/format';
 import { CopyableAddress } from '../components/CopyableAddress';
+import { TimelineComponent } from '../components/TimelineComponent';
 
 type Tab = 'status' | 'activity' | 'notifications';
 
@@ -151,7 +156,7 @@ export default function Viewer() {
           <Link to="/view" className="text-sm text-slate-400 transition hover:text-slate-200">← Back</Link>
           <CopyableAddress value={metadata.address} className="mt-2 text-sm text-slate-400" />
           <div className="mt-1 flex items-center gap-2">
-            <StateBadge state={status.state} />
+            <StateBadge status={status} />
             {status.funded ? (
               <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-0.5 text-xs text-emerald-300">Funded</span>
             ) : (
@@ -222,19 +227,44 @@ function StatusTab({ metadata, status, purposeTexts }: { metadata: VaultMetadata
 
   return (
     <div className="flex flex-col gap-4">
-      {activePendingRequest && (
-        <div className="rounded-[2rem] border border-amber-300/20 bg-amber-300/10 p-5">
-          <p className="text-xs uppercase tracking-widest text-amber-300/70">Pending Request</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <Field label="Amount" value={formatTokenAmount(activePendingRequest.amount)} />
-            <Field label="Type" value={activePendingRequest.requestType} />
-            <Field label="Requested at" value={formatUnixSeconds(activePendingRequest.requestedAt)} />
-            <Field label="Executable at" value={formatUnixSeconds(activePendingRequest.executableAt)} />
-            <Field label="Expires at" value={`${formatUnixSeconds(activePendingRequest.expiresAt)} (${formatRelativeCountdown(activePendingRequest.expiresAt)})`} />
+      {activePendingRequest ? (
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <TimelineComponent
+            requestedAt={Number(activePendingRequest.requestedAt)}
+            cancelWindow={Number(metadata.cancelWindow)}
+            executableAt={Number(activePendingRequest.executableAt)}
+            expiresAt={Number(activePendingRequest.expiresAt)}
+            nowSeconds={nowSeconds}
+            purposeText={pendingPurposeText || undefined}
+          />
+          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
+            <p className="text-sm uppercase tracking-[0.25em] text-slate-400">Request Details</p>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <Field label="Amount" value={formatTokenAmount(activePendingRequest.amount)} />
+              <Field label="Allocation" value={activePendingRequest.requestType === 'protected' ? 'Vested allocation' : 'Surplus allocation'} />
+              <Field label="Requested at" value={formatUnixSeconds(activePendingRequest.requestedAt)} />
+              <Field label="Executable at" value={formatUnixSeconds(activePendingRequest.executableAt)} />
+              <Field label="Expires at" value={`${formatUnixSeconds(activePendingRequest.expiresAt)} (${formatRelativeCountdown(activePendingRequest.expiresAt)})`} />
+              <Field
+                label="Phase"
+                value={
+                  activePendingRequest.isCancelable
+                    ? 'Cancel phase'
+                    : activePendingRequest.isExecutable
+                      ? 'Execution phase'
+                      : 'Delay phase'
+                }
+              />
+            </div>
+            {pendingPurposeText ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Purpose</p>
+                <p className="mt-2 text-sm leading-6 text-slate-100">{pendingPurposeText}</p>
+              </div>
+            ) : null}
           </div>
-          {pendingPurposeText ? <p className="mt-3 text-sm leading-6 text-slate-200">{pendingPurposeText}</p> : null}
         </div>
-      )}
+      ) : null}
 
       <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
         <p className="mb-4 text-xs uppercase tracking-widest text-slate-400">Balances</p>
@@ -349,6 +379,54 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
   const [selected, setSelected] = useState<string[]>(ALL_EVENT_KINDS);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const [existingStatus, setExistingStatus] = useState<PublicEmailSubscriptionStatusResponse | null>(null);
+  const [manageMode, setManageMode] = useState(false);
+  const [manageToken, setManageToken] = useState<string | null>(null);
+  const [manageLinkPreview, setManageLinkPreview] = useState<PublicEmailManageLinkResponse | null>(null);
+
+  useEffect(() => {
+    if (!existingStatus) return;
+    if (email.trim().toLowerCase() !== existingStatus.email.toLowerCase()) {
+      setExistingStatus(null);
+      setManageMode(false);
+      setManageToken(null);
+      setManageLinkPreview(null);
+    }
+  }, [email, existingStatus]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const manageTokenFromUrl = params.get('manageEmailToken');
+    if (!manageTokenFromUrl) return;
+    const verifiedManageToken = manageTokenFromUrl;
+
+    let cancelled = false;
+
+    async function loadManagedStatus() {
+      setStatus('loading');
+      try {
+        const subscriptionStatus = await fetchManagedPublicEmailSubscriptionStatus(verifiedManageToken);
+        if (cancelled) return;
+        setEmail(subscriptionStatus.email);
+        setSelected(subscriptionStatus.eventKinds);
+        setExistingStatus(subscriptionStatus);
+        setManageMode(true);
+        setManageToken(verifiedManageToken);
+        setMessage('Secure management link verified. You can update or unsubscribe from this subscription below.');
+        setStatus('idle');
+      } catch (err) {
+        if (!cancelled) {
+          setStatus('error');
+          setMessage(err instanceof Error ? err.message : 'Unable to load secure subscription management.');
+        }
+      }
+    }
+
+    void loadManagedStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function toggle(kind: string) {
     setSelected((prev) =>
@@ -356,35 +434,137 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
     );
   }
 
+  async function loadExistingStatus(emailAddress: string) {
+    const subscriptionStatus = await fetchPublicEmailSubscriptionStatus(vaultAddress, emailAddress);
+    setExistingStatus(subscriptionStatus);
+    if (subscriptionStatus.subscribed && subscriptionStatus.eventKinds.length > 0) {
+      setSelected(subscriptionStatus.eventKinds);
+    }
+    return subscriptionStatus;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || selected.length === 0) return;
     setStatus('loading');
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const needsLookup =
+        !manageMode ||
+        !existingStatus ||
+        existingStatus.email.toLowerCase() !== normalizedEmail;
+
+      if (needsLookup) {
+        const subscriptionStatus = await loadExistingStatus(normalizedEmail);
+        if (subscriptionStatus.subscribed && !subscriptionStatus.disabled) {
+          setManageMode(false);
+          setStatus('idle');
+          setMessage(
+            subscriptionStatus.confirmed
+              ? 'This email is already subscribed. Current selections are shown below. Use the secure manage link email to change or unsubscribe from this subscription.'
+              : 'This email already has a pending subscription. Current selections are shown below. Confirm it from email before making changes.',
+          );
+          return;
+        }
+
+        if (subscriptionStatus.disabled) {
+          setManageMode(false);
+          setMessage('This email had a previous subscription. Current selections are shown below. Submit again to start a fresh subscription.');
+        }
+      }
+
       const result = await createPublicEmailSubscription({
         vaultAddress,
-        email: email.trim(),
+        email: normalizedEmail,
         eventKinds: selected,
       });
+      setExistingStatus({
+        vaultAddress: result.vaultAddress,
+        email: result.email,
+        subscribed: true,
+        confirmed: result.status === 'confirmed',
+        disabled: false,
+        eventKinds: result.eventKinds,
+        confirmedAt: result.status === 'confirmed' ? new Date().toISOString() : null,
+        disabledAt: null,
+      });
+      setManageMode(false);
       setStatus('success');
-      setMessage(result.message);
+      setMessage(
+        result.status === 'confirmed'
+          ? 'Email alert subscriptions updated.'
+          : result.message,
+      );
     } catch (err) {
       setStatus('error');
       setMessage(err instanceof Error ? err.message : 'Subscription failed.');
     }
   }
 
+  async function handleSendManageLink() {
+    if (!email.trim()) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const result = await requestPublicEmailManageLink(vaultAddress, email.trim());
+      setManageLinkPreview(result);
+      setStatus('success');
+      setMessage(result.message);
+    } catch (err) {
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Unable to send a secure management link.');
+    }
+  }
+
+  async function handleManagedUnsubscribe() {
+    if (!manageToken) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const result = await unsubscribePublicEmailSubscription(manageToken);
+      setExistingStatus({
+        vaultAddress: result.vaultAddress,
+        email: result.email,
+        subscribed: true,
+        confirmed: false,
+        disabled: true,
+        eventKinds: [],
+        confirmedAt: null,
+        disabledAt: result.unsubscribedAt,
+      });
+      setManageMode(false);
+      setManageToken(null);
+      setStatus('success');
+      setMessage(`${result.email} has been unsubscribed from vault email notifications.`);
+    } catch (err) {
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Unable to unsubscribe this email.');
+    }
+  }
+
+  const actionLabel = manageMode ? 'Update subscriptions' : 'Subscribe to alerts';
+  const currentStatusLabel =
+    existingStatus == null
+      ? null
+      : existingStatus.disabled
+        ? 'Unsubscribed'
+        : existingStatus.confirmed
+          ? 'Subscribed'
+          : existingStatus.subscribed
+            ? 'Pending confirmation'
+            : 'Not subscribed';
+
   if (status === 'success') {
     return (
       <div className="rounded-[2rem] border border-emerald-300/20 bg-emerald-300/10 p-8">
-        <p className="text-sm uppercase tracking-widest text-emerald-300/70">Subscribed</p>
+        <p className="text-sm uppercase tracking-widest text-emerald-300/70">Email Alerts</p>
         <p className="mt-2 text-slate-100">{message}</p>
         <button
           type="button"
-          onClick={() => { setStatus('idle'); setMessage(''); setEmail(''); }}
+          onClick={() => { setStatus('idle'); setMessage(''); }}
           className="mt-4 rounded-2xl border border-white/10 px-4 py-2 text-sm text-white"
         >
-          Add another
+          Continue editing
         </button>
       </div>
     );
@@ -394,7 +574,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
     <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
       <p className="text-xs uppercase tracking-widest text-slate-400">Email Alerts</p>
       <p className="mt-2 text-sm text-slate-400">
-        Receive email notifications when vault events occur. Check your inbox to confirm.
+        Receive email notifications when vault events occur. If this email is already subscribed, Beacon will load the current selections so you can update them without another confirmation step.
       </p>
 
       <form onSubmit={(e) => { void handleSubmit(e); }} className="mt-6 flex flex-col gap-5">
@@ -409,6 +589,23 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
             className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/20"
           />
         </div>
+
+        {currentStatusLabel ? (
+          <div className={`rounded-2xl border px-4 py-3 text-sm ${
+            existingStatus?.disabled
+              ? 'border-rose-300/20 bg-rose-300/10 text-rose-100'
+              : existingStatus?.confirmed
+                ? 'border-emerald-300/20 bg-emerald-300/10 text-emerald-100'
+                : 'border-amber-300/20 bg-amber-300/10 text-amber-100'
+          }`}>
+            <p className="font-medium text-white">{currentStatusLabel}</p>
+            {existingStatus?.subscribed && !existingStatus.disabled ? (
+              <p className="mt-1">
+                Current subscriptions: {existingStatus.eventKinds.map((kind) => EVENT_LABELS[kind] ?? kind).join(', ')}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div>
           <p className="mb-3 text-sm text-slate-300">Notify me about</p>
@@ -433,11 +630,47 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
 
         <button
           type="submit"
-          disabled={!email.trim() || selected.length === 0 || status === 'loading'}
+          disabled={
+            !email.trim() ||
+            selected.length === 0 ||
+            status === 'loading' ||
+            (existingStatus?.confirmed === true && !manageMode)
+          }
           className="rounded-2xl bg-amber-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {status === 'loading' ? 'Subscribing…' : 'Subscribe to alerts'}
+          {status === 'loading' ? 'Working…' : actionLabel}
         </button>
+
+        {existingStatus?.confirmed && !manageMode ? (
+          <button
+            type="button"
+            onClick={() => void handleSendManageLink()}
+            disabled={!email.trim() || status === 'loading'}
+            className="w-fit text-sm text-slate-400 underline decoration-slate-500/60 underline-offset-4 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Already subscribed? Email me a secure manage link
+          </button>
+        ) : null}
+
+        {manageMode ? (
+          <button
+            type="button"
+            onClick={() => void handleManagedUnsubscribe()}
+            disabled={status === 'loading'}
+            className="w-fit text-sm text-slate-400 underline decoration-slate-500/60 underline-offset-4 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Unsubscribe from email notifications
+          </button>
+        ) : null}
+
+        {manageLinkPreview?.deliveryMode === 'preview' && manageLinkPreview.previewManageUrl ? (
+          <a
+            href={manageLinkPreview.previewManageUrl}
+            className="w-fit text-sm text-sky-300 underline decoration-sky-400/60 underline-offset-4 transition hover:text-sky-200"
+          >
+            Open preview manage link
+          </a>
+        ) : null}
       </form>
     </div>
   );
@@ -454,20 +687,16 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StateBadge({ state }: { state: string }) {
-  const active = state.startsWith('active') || state === 'request_executable';
-  const warn = state.includes('pending');
-  const muted = state === 'idle' || state.includes('recently');
-  const cls = active
-    ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-300'
-    : warn
+function StateBadge({ status }: { status: VaultStatus }) {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const hasPendingWithdrawal =
+    status.pendingRequest != null && Number(status.pendingRequest.expiresAt) > nowSeconds;
+  const cls = hasPendingWithdrawal
     ? 'border-amber-300/30 bg-amber-300/10 text-amber-300'
-    : muted
-    ? 'border-slate-300/20 bg-slate-300/10 text-slate-300'
-    : 'border-rose-300/30 bg-rose-300/10 text-rose-300';
+    : 'border-emerald-300/30 bg-emerald-300/10 text-emerald-300';
   return (
     <span className={`rounded-full border px-3 py-0.5 text-xs font-medium ${cls}`}>
-      {formatStateLabel(state)}
+      {hasPendingWithdrawal ? 'Withdrawal Pending' : 'No Pending Activity'}
     </span>
   );
 }

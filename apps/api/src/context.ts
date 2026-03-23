@@ -7,7 +7,7 @@ import type {
   VaultEventsResponse,
   VaultMetadata,
 } from '@brigid/beacon-shared-types';
-import { decodePublicEmailActionToken } from '@brigid/beacon-shared-types';
+import { decodePublicEmailActionToken, encodePublicEmailActionToken } from '@brigid/beacon-shared-types';
 import { computeVaultStatus } from '@brigid/beacon-status-engine';
 import type { ApiConfig } from './config.js';
 
@@ -189,6 +189,20 @@ export function buildPublicConfirmationUrls(config: ApiConfig, vaultAddress: str
   };
 }
 
+export function buildPublicActionUrl(
+  config: ApiConfig,
+  vaultAddress: string,
+  params: { action: 'manage' | 'unsubscribe'; token: string },
+) {
+  if (!config.publicAppBaseUrl) {
+    return null;
+  }
+
+  const baseUrl = config.publicAppBaseUrl.replace(/\/$/, '');
+  const paramName = params.action === 'manage' ? 'manageEmailToken' : 'unsubscribeEmailToken';
+  return `${baseUrl}/view/${vaultAddress}?${paramName}=${encodeURIComponent(params.token)}`;
+}
+
 function encodeTelegramLinkToken(config: ApiConfig, payload: TelegramLinkPayload): string | null {
   const secret = config.telegramLinkSecret ?? config.managedTelegramBotToken;
   if (!secret) return null;
@@ -241,6 +255,77 @@ export function decodeTelegramLinkToken(config: ApiConfig, token: string): Teleg
 
 const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
 const BREVO_SENDER_NAME = 'BRIGID BEACON NOTIFICATIONS';
+
+function buildEmailLogoUrl(config: ApiConfig): string | null {
+  if (!config.publicAppBaseUrl) return null;
+  return `${config.publicAppBaseUrl.replace(/\/$/, '')}/media/logo-transparent.png`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function buildBrandedEmailHtml(params: {
+  config: ApiConfig;
+  eyebrow: string;
+  title: string;
+  intro: string;
+  rows?: Array<{ label: string; value: string }>;
+  bodyHtml?: string;
+  primaryAction?: { label: string; href: string | null };
+  secondaryAction?: { label: string; href: string | null };
+  footer?: string;
+}) {
+  const logoUrl = buildEmailLogoUrl(params.config);
+  const rowMarkup = (params.rows ?? [])
+    .map((row) => `
+      <tr>
+        <td style="padding: 0 0 10px; color: #94a3b8; font-size: 13px; width: 132px; vertical-align: top;">${escapeHtml(row.label)}</td>
+        <td style="padding: 0 0 10px; color: #e2e8f0; font-size: 13px; vertical-align: top;">${escapeHtml(row.value)}</td>
+      </tr>
+    `)
+    .join('');
+
+  const button = (action: { label: string; href: string | null } | undefined, palette: 'gold' | 'slate') => {
+    if (!action?.href) return '';
+    const styles =
+      palette === 'gold'
+        ? 'background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: #111827;'
+        : 'background: rgba(255,255,255,0.06); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.12);';
+    return `<a href="${action.href}" style="display: inline-block; margin-right: 12px; margin-bottom: 12px; padding: 12px 18px; border-radius: 999px; text-decoration: none; font-size: 14px; font-weight: 700; ${styles}">${escapeHtml(action.label)}</a>`;
+  };
+
+  return `
+    <div style="margin: 0; padding: 32px 18px; background: #020617; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+      <div style="max-width: 640px; margin: 0 auto;">
+        <div style="margin-bottom: 20px; text-align: center;">
+          ${logoUrl ? `<img src="${logoUrl}" alt="Brigid Beacon" style="max-width: 240px; width: 100%; height: auto; margin: 0 auto 10px; display: block;" />` : ''}
+        </div>
+        <div style="border: 1px solid rgba(255,255,255,0.08); border-radius: 28px; overflow: hidden; background: linear-gradient(180deg, rgba(15,23,42,0.96) 0%, rgba(2,6,23,0.98) 100%); box-shadow: 0 24px 80px rgba(15,23,42,0.45);">
+          <div style="padding: 28px 28px 22px; background: radial-gradient(circle at top left, rgba(251,191,36,0.18), transparent 28%), radial-gradient(circle at 80% 20%, rgba(56,189,248,0.14), transparent 22%);">
+            <p style="margin: 0 0 12px; color: rgba(251,191,36,0.82); font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;">${escapeHtml(params.eyebrow)}</p>
+            <h1 style="margin: 0; color: #ffffff; font-size: 28px; line-height: 1.2;">${escapeHtml(params.title)}</h1>
+            <p style="margin: 14px 0 0; color: #cbd5e1; font-size: 15px; line-height: 1.7;">${escapeHtml(params.intro)}</p>
+          </div>
+          <div style="padding: 0 28px 28px;">
+            ${rowMarkup ? `<table role="presentation" cellspacing="0" cellpadding="0" style="width: 100%; margin: 0 0 18px;">${rowMarkup}</table>` : ''}
+            ${params.bodyHtml ? `<div style="margin: 0 0 22px; color: #cbd5e1; font-size: 14px; line-height: 1.75;">${params.bodyHtml}</div>` : ''}
+            <div style="margin: 0 0 10px;">
+              ${button(params.primaryAction, 'gold')}
+              ${button(params.secondaryAction, 'slate')}
+            </div>
+            ${params.footer ? `<p style="margin: 18px 0 0; color: #94a3b8; font-size: 12px; line-height: 1.7;">${escapeHtml(params.footer)}</p>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 type VaultRow = {
   id: string;
@@ -425,12 +510,23 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     ].join('\n');
 
     const htmlContent = [
-      '<p>You requested public Brigid Beacon email alerts.</p>',
-      `<p><strong>Vault:</strong> ${params.vaultAddress}</p>`,
-      `<p><strong>Events:</strong><br/>${params.eventKinds.join('<br/>')}</p>`,
-      params.confirmUrl ? `<p><a href="${params.confirmUrl}">Confirm your subscription</a></p>` : '',
-      `<p><strong>Confirmation expires at:</strong> ${params.expiresAt}</p>`,
-      params.unsubscribeUrl ? `<p><a href="${params.unsubscribeUrl}">Unsubscribe</a></p>` : '',
+      buildBrandedEmailHtml({
+        config,
+        eyebrow: 'Public Alerts',
+        title: 'Confirm Your Email Subscription',
+        intro: 'You requested public Brigid Beacon email alerts for this vault. Confirm the subscription to start receiving notifications.',
+        rows: [
+          { label: 'Vault', value: params.vaultAddress },
+          { label: 'Events', value: params.eventKinds.join(', ') },
+          { label: 'Expires', value: params.expiresAt },
+        ],
+        primaryAction: params.confirmUrl ? { label: 'Confirm subscription', href: params.confirmUrl } : undefined,
+        secondaryAction: params.unsubscribeUrl ? { label: 'Unsubscribe', href: params.unsubscribeUrl } : undefined,
+        bodyHtml: params.confirmUrl == null
+          ? `<p style="margin: 0;">Use this confirmation token in Beacon:</p><p style="margin: 10px 0 0; font-family: ui-monospace, SFMono-Regular, monospace; color: #f8fafc;">${escapeHtml(params.confirmToken)}</p>`
+          : '',
+        footer: 'If you did not request these alerts, you can ignore this message.',
+      }),
     ].join('');
 
     const response = await fetch(BREVO_SEND_URL, {
@@ -456,6 +552,71 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     return { deliveryMode: 'brevo' as const };
   }
 
+  async function sendPublicManageLinkEmail(params: {
+    to: string;
+    vaultAddress: string;
+    manageUrl: string | null;
+    manageToken: string;
+    expiresAt: string;
+  }) {
+    if (!config.brevoApiKey || !config.publicEmailFromAddress) {
+      return { deliveryMode: 'preview' as const };
+    }
+
+    const manageLine = params.manageUrl
+      ? `Manage your subscription: ${params.manageUrl}`
+      : `Manage using this token in Beacon: ${params.manageToken}`;
+
+    const textContent = [
+      'You requested a secure Brigid Beacon email subscription management link.',
+      '',
+      `Vault: ${params.vaultAddress}`,
+      manageLine,
+      '',
+      `This secure link expires at: ${params.expiresAt}`,
+    ].join('\n');
+
+    const htmlContent = [
+      buildBrandedEmailHtml({
+        config,
+        eyebrow: 'Manage Alerts',
+        title: 'Secure Email Management Link',
+        intro: 'Use this secure link to update or unsubscribe from your public Brigid Beacon email alerts.',
+        rows: [
+          { label: 'Vault', value: params.vaultAddress },
+          { label: 'Link expires', value: params.expiresAt },
+        ],
+        primaryAction: params.manageUrl ? { label: 'Manage email alerts', href: params.manageUrl } : undefined,
+        bodyHtml: params.manageUrl == null
+          ? `<p style="margin: 0;">Use this secure management token in Beacon:</p><p style="margin: 10px 0 0; font-family: ui-monospace, SFMono-Regular, monospace; color: #f8fafc;">${escapeHtml(params.manageToken)}</p>`
+          : '',
+        footer: 'If you did not request this link, no changes have been made to your alerts.',
+      }),
+    ].join('');
+
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': config.brevoApiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: BREVO_SENDER_NAME, email: config.publicEmailFromAddress },
+        to: [{ email: params.to }],
+        subject: 'Manage your Brigid Beacon vault alerts',
+        textContent,
+        htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Brevo API ${response.status}: ${await response.text()}`);
+    }
+
+    return { deliveryMode: 'brevo' as const };
+  }
+
   return {
     prisma,
     config,
@@ -467,6 +628,7 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     buildTokenAnalytics,
     sendManagedTelegramMessage,
     sendPublicConfirmationEmail,
+    sendPublicManageLinkEmail,
     buildTelegramConnectLink(params: { destinationId: string; expiresAt?: Date; sessionExpiresAt?: Date }) {
       const expiryDate = params.expiresAt ?? params.sessionExpiresAt;
       if (!expiryDate) {
@@ -493,6 +655,11 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     },
     decodePublicEmailActionToken(token: string) {
       return config.publicEmailLinkSecret ? decodePublicEmailActionToken(token, config.publicEmailLinkSecret) : null;
+    },
+    encodePublicEmailActionToken(params: { action: 'manage' | 'unsubscribe'; subscriptionId: string; vaultAddress: string; email: string; expiresAt: string }) {
+      return config.publicEmailLinkSecret
+        ? encodePublicEmailActionToken(params, config.publicEmailLinkSecret)
+        : null;
     },
     buildClaimMessage(params: { vaultAddress: string; ownerAddress: string; nonce: string; issuedAt: string; expiresAt: string }) {
       return buildClaimMessage({ ...params, chainId: config.chainId });
