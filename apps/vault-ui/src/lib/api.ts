@@ -267,12 +267,12 @@ export type PublicEmailSubscriptionResponse = {
   email: string;
   eventKinds: string[];
   expiresAt: string | null;
-  deliveryMode: 'preview' | 'ses' | 'confirmed';
+  deliveryMode: 'preview' | 'brevo' | 'confirmed';
   message: string;
-  previewConfirmToken: string;
-  previewConfirmUrl: string | null;
-  previewUnsubscribeToken: string;
-  previewUnsubscribeUrl: string | null;
+  previewConfirmToken?: string;
+  previewConfirmUrl?: string | null;
+  previewUnsubscribeToken?: string;
+  previewUnsubscribeUrl?: string | null;
 };
 
 export type PublicEmailConfirmationResponse = {
@@ -296,8 +296,8 @@ export type PublicEmailManageLinkResponse = {
   vaultAddress: string;
   expiresAt: string;
   deliveryMode: 'preview' | 'brevo';
-  previewManageToken: string;
-  previewManageUrl: string | null;
+  previewManageToken?: string;
+  previewManageUrl?: string | null;
   message: string;
 };
 

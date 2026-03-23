@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { getAddress, Wallet } from 'ethers';
+import { encodePublicEmailActionToken } from '@brigid/beacon-shared-types';
 dotenv.config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
 import { prisma } from '../src/db.js';
 import { buildApp } from '../src/app.js';
+import { getApiConfig } from '../src/config.js';
 
 const TEST_CHAIN_ID = Number(process.env.CHAIN_ID ?? 97);
 const vaultAddress = getAddress('0x00000000000000000000000000000000000000a1');
@@ -15,6 +17,16 @@ const tokenAddress = getAddress('0x00000000000000000000000000000000000000c3');
 const txBase = '0xtestapiseeded';
 
 async function seedDemoVault() {
+  await prisma.publicEmailDelivery.deleteMany({ where: { subscription: { vaultAddress } } });
+  await prisma.publicEmailToken.deleteMany({ where: { subscription: { vaultAddress } } });
+  await prisma.publicEmailSubscription.deleteMany({ where: { vaultAddress } });
+  await prisma.publicEmailFollower.deleteMany({
+    where: {
+      email: {
+        in: ['alerts@example.com', 'pending@example.com', 'manage@example.com'],
+      },
+    },
+  });
   await prisma.notificationDelivery.deleteMany({ where: { subscription: { vaultAddress } } });
   await prisma.notificationSubscription.deleteMany({ where: { vaultAddress } });
   await prisma.notificationDestination.deleteMany({ where: { ownerAddress } });
@@ -128,6 +140,16 @@ async function seedDemoVault() {
 }
 
 async function cleanupDemoVault() {
+  await prisma.publicEmailDelivery.deleteMany({ where: { subscription: { vaultAddress } } });
+  await prisma.publicEmailToken.deleteMany({ where: { subscription: { vaultAddress } } });
+  await prisma.publicEmailSubscription.deleteMany({ where: { vaultAddress } });
+  await prisma.publicEmailFollower.deleteMany({
+    where: {
+      email: {
+        in: ['alerts@example.com', 'pending@example.com', 'manage@example.com'],
+      },
+    },
+  });
   await prisma.notificationDelivery.deleteMany({ where: { subscription: { vaultAddress } } });
   await prisma.notificationSubscription.deleteMany({ where: { vaultAddress } });
   await prisma.notificationDestination.deleteMany({ where: { ownerAddress } });
@@ -805,4 +827,214 @@ test('Beacon API returns token and ecosystem analytics summaries', async (t) => 
   assert.equal(tokenDetail.tokenAddress, tokenAddress);
   assert.equal(tokenDetail.vaultCount, 1);
   assert.equal(tokenDetail.vaults[0].metadata.address, vaultAddress);
+});
+
+test('Beacon API supports public email subscription preview and confirmation flow', async (t) => {
+  await seedDemoVault();
+  t.after(async () => {
+    await cleanupDemoVault();
+  });
+
+  const app = buildApp(prisma, {
+    config: {
+      ...getApiConfig(),
+      publicAppBaseUrl: 'http://localhost:5174',
+      publicEmailLinkSecret: 'public-email-test-secret',
+      brevoApiKey: null,
+      publicEmailFromAddress: 'beacon-notifications@example.com',
+    },
+  });
+  t.after(async () => {
+    await app.close();
+  });
+
+  const subscribeResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions',
+    payload: {
+      vaultAddress,
+      email: 'alerts@example.com',
+      eventKinds: ['vault_funded', 'withdrawal_executed'],
+    },
+  });
+  assert.equal(subscribeResponse.statusCode, 200);
+  const subscribePayload = subscribeResponse.json();
+  assert.equal(subscribePayload.status, 'pending_confirmation');
+  assert.equal(subscribePayload.deliveryMode, 'preview');
+  assert.match(subscribePayload.previewConfirmUrl ?? '', /confirmEmailToken=/);
+  assert.ok(subscribePayload.previewConfirmToken);
+
+  const statusBeforeConfirm = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/email-subscriptions/status?vaultAddress=${vaultAddress}&email=alerts%40example.com`,
+  });
+  assert.equal(statusBeforeConfirm.statusCode, 200);
+  assert.equal(statusBeforeConfirm.json().confirmed, false);
+
+  const confirmResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions/confirm',
+    payload: {
+      token: subscribePayload.previewConfirmToken,
+    },
+  });
+  assert.equal(confirmResponse.statusCode, 200);
+  const confirmPayload = confirmResponse.json();
+  assert.equal(confirmPayload.confirmed, true);
+  assert.equal(confirmPayload.email, 'alerts@example.com');
+
+  const statusAfterConfirm = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/email-subscriptions/status?vaultAddress=${vaultAddress}&email=alerts%40example.com`,
+  });
+  assert.equal(statusAfterConfirm.statusCode, 200);
+  const confirmedStatus = statusAfterConfirm.json();
+  assert.equal(confirmedStatus.confirmed, true);
+  assert.deepEqual(confirmedStatus.eventKinds, ['vault_funded', 'withdrawal_executed']);
+});
+
+test('Beacon API refreshes pending public email subscriptions and updates event selections', async (t) => {
+  await seedDemoVault();
+  t.after(async () => {
+    await cleanupDemoVault();
+  });
+
+  const app = buildApp(prisma, {
+    config: {
+      ...getApiConfig(),
+      publicAppBaseUrl: 'http://localhost:5174',
+      publicEmailLinkSecret: 'public-email-test-secret',
+      brevoApiKey: null,
+      publicEmailFromAddress: 'beacon-notifications@example.com',
+    },
+  });
+  t.after(async () => {
+    await app.close();
+  });
+
+  const firstResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions',
+    payload: {
+      vaultAddress,
+      email: 'pending@example.com',
+      eventKinds: ['vault_funded'],
+    },
+  });
+  assert.equal(firstResponse.statusCode, 200);
+  const firstPayload = firstResponse.json();
+
+  const secondResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions',
+    payload: {
+      vaultAddress,
+      email: 'pending@example.com',
+      eventKinds: ['withdrawal_executed', 'request_expired'],
+    },
+  });
+  assert.equal(secondResponse.statusCode, 200);
+  const secondPayload = secondResponse.json();
+  assert.equal(secondPayload.status, 'pending_confirmation');
+  assert.equal(secondPayload.deliveryMode, 'preview');
+  assert.notEqual(secondPayload.previewConfirmToken, firstPayload.previewConfirmToken);
+
+  const statusResponse = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/email-subscriptions/status?vaultAddress=${vaultAddress}&email=pending%40example.com`,
+  });
+  assert.equal(statusResponse.statusCode, 200);
+  const statusPayload = statusResponse.json();
+  assert.equal(statusPayload.confirmed, false);
+  assert.deepEqual(statusPayload.eventKinds, ['withdrawal_executed', 'request_expired']);
+});
+
+test('Beacon API issues secure manage links and rejects unsubscribe tokens for manage endpoint', async (t) => {
+  await seedDemoVault();
+  t.after(async () => {
+    await cleanupDemoVault();
+  });
+
+  const config = {
+    ...getApiConfig(),
+    publicAppBaseUrl: 'http://localhost:5174',
+    publicEmailLinkSecret: 'public-email-test-secret',
+    brevoApiKey: null,
+    publicEmailFromAddress: 'beacon-notifications@example.com',
+  };
+
+  const app = buildApp(prisma, { config });
+  t.after(async () => {
+    await app.close();
+  });
+
+  const subscribeResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions',
+    payload: {
+      vaultAddress,
+      email: 'manage@example.com',
+      eventKinds: ['vault_funded', 'withdrawal_executed'],
+    },
+  });
+  const subscribePayload = subscribeResponse.json();
+
+  await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions/confirm',
+    payload: {
+      token: subscribePayload.previewConfirmToken,
+    },
+  });
+
+  const manageLinkResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions/manage-link',
+    payload: {
+      vaultAddress,
+      email: 'manage@example.com',
+    },
+  });
+  assert.equal(manageLinkResponse.statusCode, 200);
+  const manageLinkPayload = manageLinkResponse.json();
+  assert.equal(manageLinkPayload.deliveryMode, 'preview');
+  assert.ok(manageLinkPayload.previewManageToken);
+
+  const manageStatusResponse = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/email-subscriptions/manage?token=${encodeURIComponent(manageLinkPayload.previewManageToken)}`,
+  });
+  assert.equal(manageStatusResponse.statusCode, 200);
+  const manageStatusPayload = manageStatusResponse.json();
+  assert.equal(manageStatusPayload.email, 'manage@example.com');
+  assert.equal(manageStatusPayload.confirmed, true);
+  assert.ok(manageStatusPayload.unsubscribeToken);
+
+  const subscription = await prisma.publicEmailSubscription.findFirstOrThrow({
+    where: { vaultAddress, follower: { email: 'manage@example.com' } },
+    include: { follower: true },
+  });
+  const validWrongActionToken = encodePublicEmailActionToken({
+    action: 'unsubscribe',
+    subscriptionId: subscription.id,
+    vaultAddress,
+    email: subscription.follower.email,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  }, config.publicEmailLinkSecret!);
+
+  const wrongManageResponse = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/email-subscriptions/manage?token=${encodeURIComponent(validWrongActionToken)}`,
+  });
+  assert.equal(wrongManageResponse.statusCode, 404);
+
+  const unsubscribeResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/email-subscriptions/unsubscribe',
+    payload: {
+      token: manageStatusPayload.unsubscribeToken,
+    },
+  });
+  assert.equal(unsubscribeResponse.statusCode, 200);
+  assert.equal(unsubscribeResponse.json().unsubscribed, true);
 });

@@ -163,7 +163,7 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
     }
 
     const payload = ctx.decodePublicEmailActionToken(token);
-    if (!payload) {
+    if (!payload || payload.action !== 'manage') {
       return reply.status(404).send({ error: 'Not found', message: 'Management token is missing, invalid, or expired.' });
     }
 

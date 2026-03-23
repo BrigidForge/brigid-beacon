@@ -8,6 +8,7 @@ import {
   fetchManagedPublicEmailSubscriptionStatus,
   fetchPublicEmailSubscriptionStatus,
   requestPublicEmailManageLink,
+  type PublicEmailSubscriptionResponse,
   type PublicEmailManageLinkResponse,
   type PublicEmailSubscriptionStatusResponse,
   unsubscribePublicEmailSubscription,
@@ -398,6 +399,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
   const [selected, setSelected] = useState<string[]>(ALL_EVENT_KINDS);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const [subscriptionResult, setSubscriptionResult] = useState<PublicEmailSubscriptionResponse | null>(null);
   const [existingStatus, setExistingStatus] = useState<PublicEmailSubscriptionStatusResponse | null>(null);
   const [manageMode, setManageMode] = useState(false);
   const [managedUnsubscribeToken, setManagedUnsubscribeToken] = useState<string | null>(null);
@@ -409,6 +411,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
       setExistingStatus(null);
       setManageMode(false);
       setManagedUnsubscribeToken(null);
+      setSubscriptionResult(null);
       setManageLinkPreview(null);
     }
   }, [email, existingStatus]);
@@ -476,14 +479,17 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
       if (needsLookup) {
         const subscriptionStatus = await loadExistingStatus(normalizedEmail);
         if (subscriptionStatus.subscribed && !subscriptionStatus.disabled) {
+          if (subscriptionStatus.confirmed) {
+            setManageMode(false);
+            setStatus('idle');
+            setMessage(
+              'Email Address Already Subscribed. If you would like to make changes to an existing subscription click here.',
+            );
+            return;
+          }
+
           setManageMode(false);
-          setStatus('idle');
-          setMessage(
-            subscriptionStatus.confirmed
-              ? 'Email Address Already Subscribed. If you would like to make changes to an existing subscription click here.'
-              : 'This email already has a pending subscription. Current selections are shown below. Confirm it from email before making changes.',
-          );
-          return;
+          setMessage('Pending subscription found. Submitting again will refresh the confirmation email and save the selections below.');
         }
 
         if (subscriptionStatus.disabled) {
@@ -497,6 +503,8 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
         email: normalizedEmail,
         eventKinds: selected,
       });
+      setSubscriptionResult(result);
+      setManageLinkPreview(null);
       setExistingStatus({
         vaultAddress: result.vaultAddress,
         email: result.email,
@@ -524,6 +532,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
     if (!email.trim()) return;
     setStatus('loading');
     setMessage('');
+    setSubscriptionResult(null);
     try {
       const result = await requestPublicEmailManageLink(vaultAddress, email.trim());
       setManageLinkPreview(result);
@@ -539,6 +548,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
     if (!managedUnsubscribeToken) return;
     setStatus('loading');
     setMessage('');
+    setSubscriptionResult(null);
     try {
       const result = await unsubscribePublicEmailSubscription(managedUnsubscribeToken);
       setExistingStatus({
@@ -578,9 +588,51 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
       <div className="rounded-[2rem] border border-emerald-300/20 bg-emerald-300/10 p-8">
         <p className="text-sm uppercase tracking-widest text-emerald-300/70">Email Alerts</p>
         <p className="mt-2 text-slate-100">{message}</p>
+        {subscriptionResult?.deliveryMode === 'preview' ? (
+          <div className="mt-4 space-y-3 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4 text-sm text-sky-100">
+            <p className="font-medium text-white">Preview mode</p>
+            <p>Brevo is not active here, so use the generated confirmation link below to finish the subscription locally.</p>
+            {subscriptionResult.previewConfirmUrl ? (
+              <a
+                href={subscriptionResult.previewConfirmUrl}
+                className="inline-flex text-sky-200 underline decoration-sky-300/60 underline-offset-4 transition hover:text-sky-50"
+              >
+                Open confirmation link
+              </a>
+            ) : null}
+            {subscriptionResult.previewConfirmToken ? (
+              <p className="font-mono text-xs break-all text-sky-50">Confirm token: {subscriptionResult.previewConfirmToken}</p>
+            ) : null}
+            {subscriptionResult.previewUnsubscribeUrl ? (
+              <a
+                href={subscriptionResult.previewUnsubscribeUrl}
+                className="inline-flex text-sky-200 underline decoration-sky-300/60 underline-offset-4 transition hover:text-sky-50"
+              >
+                Open unsubscribe link
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+        {manageLinkPreview?.deliveryMode === 'preview' ? (
+          <div className="mt-4 space-y-3 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4 text-sm text-sky-100">
+            <p className="font-medium text-white">Preview management link</p>
+            <p>Use this local preview link to manage the subscription without email delivery.</p>
+            {manageLinkPreview.previewManageUrl ? (
+              <a
+                href={manageLinkPreview.previewManageUrl}
+                className="inline-flex text-sky-200 underline decoration-sky-300/60 underline-offset-4 transition hover:text-sky-50"
+              >
+                Open preview manage link
+              </a>
+            ) : null}
+            {manageLinkPreview.previewManageToken ? (
+              <p className="font-mono text-xs break-all text-sky-50">Manage token: {manageLinkPreview.previewManageToken}</p>
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
-          onClick={() => { setStatus('idle'); setMessage(''); }}
+          onClick={() => { setStatus('idle'); setMessage(''); setSubscriptionResult(null); setManageLinkPreview(null); }}
           className="mt-4 rounded-2xl border border-white/10 px-4 py-2 text-sm text-white"
         >
           Back to notifications
@@ -687,14 +739,6 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
           </button>
         ) : null}
 
-        {manageLinkPreview?.deliveryMode === 'preview' && manageLinkPreview.previewManageUrl ? (
-          <a
-            href={manageLinkPreview.previewManageUrl}
-            className="w-fit text-sm text-sky-300 underline decoration-sky-400/60 underline-offset-4 transition hover:text-sky-200"
-          >
-            Open preview manage link
-          </a>
-        ) : null}
       </form>
     </div>
   );
