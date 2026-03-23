@@ -1,219 +1,127 @@
-# BrigidVault Beacon System
+# BrigidVault Beacon
 
 **Visibility before execution.**
 
-Monitoring, indexing, alerting, and public visibility layer for official BrigidVault contracts.
+Beacon is the application layer for BrigidVault on BSC testnet: indexing, vault status computation, public viewing, owner withdrawal controls, and notification delivery.
 
-## Directory And Deployment Map
+## Stable Release
 
-- Local repo path: `/home/dev/brigid-forge/brigid-beacon`
-- Forgejo remote: `git@git.brigidforge.com:dev/brigid-beacon.git`
-- Primary server clone: `/opt/brigidforge/repo`
-- Auto deploy branches:
-  - `dev` -> `/var/www/staging-beacon`
-  - `main` -> `/var/www/beacon`
-- Forgejo hook path:
-  - `/var/lib/forgejo/data/forgejo-repositories/dev/brigid-beacon.git/hooks/post-receive.d/brigid-deploy`
-- Server deploy script:
-  - `/root/update-brigid.sh`
+- Current stable release: `V1.0.0`
+- Previous stable release: none
+- Release note: `V1.0.0` is the first explicitly versioned stable Beacon release. It locks in the unified `vault-ui` app, owner withdrawal lifecycle controls, public email subscriptions and management, Telegram notifications, and production deploy automation.
 
-Canonical hosted web roots:
-- Operator panel -> `/var/www/beacon`
-- Public panel -> `/var/www/panel`
+## Live Deployment
 
-Canonical hosted runtime units:
-- `/etc/systemd/system/beacon-api.service`
-- `/etc/systemd/system/beacon-worker.service`
+- Vault UI: `https://vault.brigidforge.com`
+- Mirror UI: `https://beacon.brigidforge.com`
+- Server: `104.131.19.70`
+- Production branch: `main`
+- Production repo on server: `/opt/brigidforge/repo`
 
-Related website preview note:
-- The public marketing site preview now publishes from the separate `brigid-site` repo to `/var/www/staging-site` on `dev`.
+## What Beacon Does
 
-## Structure
+- Indexes official BrigidVault factory and vault events on BSC testnet
+- Computes vault status, vesting availability, pending withdrawal phases, and activity history
+- Serves a unified React app for:
+  - public vault viewing at `/view/:vault`
+  - owner controls at `/operator/:vault`
+- Supports owner notification destinations:
+  - Telegram
+  - Discord webhook
+  - generic webhook
+- Supports public email subscriptions with:
+  - confirmation flow
+  - secure manage links
+  - unsubscribe flow
+  - actionable withdrawal request alerts after the cancellation window closes
+- Deploys automatically on `git push origin main`
 
-- **apps/api** – Beacon API (Fastify); vault metadata, status, events, proof
-- **apps/public-panel** – Public visitor panel (Vite + React + Tailwind); curated vault visibility and `/vault/:address`
-- **apps/operator-panel** – Operator panel (Vite + React + Tailwind); wallet-based vault transactions plus Beacon notification setup
-- **apps/viewer** – Legacy Beacon viewer kept for compatibility while the new split surfaces settle
-- **apps/worker** – Indexer and notification jobs (Sprint 2 & 5)
-- **packages/shared-types** – Event taxonomy, status state, API contracts
-- **packages/contracts-abi** – BrigidVault & Factory ABI for indexer
-- **packages/status-engine** – Vault state computation
-- **prisma** – PostgreSQL schema (vaults, events, snapshots)
-- **docs** – [BEACON_MVP_SPEC.md](./docs/BEACON_MVP_SPEC.md)
+## Repository Layout
 
-## Current State
+- `apps/api` – Fastify API for vault metadata, status, events, proofs, public email flows, and owner session flows
+- `apps/vault-ui` – active Vite/React frontend for both public viewer and owner/operator flows
+- `apps/worker` – indexer and notification dispatcher
+- `apps/viewer` – legacy compatibility app, not the active frontend
+- `packages/shared-types` – normalized event and API contract types
+- `packages/contracts-abi` – BrigidVault and factory ABIs
+- `packages/status-engine` – vault state computation
+- `packages/beacon-theme` – shared UI theme
+- `prisma` – PostgreSQL schema
+- `ops` – nginx and systemd definitions
+- `scripts` – deploy and local runtime helpers
 
-Beacon is now validated against a live **BSC testnet** deployment.
+## Current Product Surface
 
-- Public Beacon URL: `https://beacon.brigidforge.com`
-- Canonical factory: `0xFc946E68886841B20c33b4449578c4cC35De5165`
-- Factory start block: `95886539`
-- First indexed validation vault:
-  `0x813bd049593844d8350b055c5b08d713fcfa4d3f`
+The active app is `apps/vault-ui`.
 
-The detailed runbook lives in [docs/LOCAL_DEMO.md](./docs/LOCAL_DEMO.md), and the AI handoff/context file lives in [docs/AI_HANDOFF.md](./docs/AI_HANDOFF.md).
-The deployment playbook lives in [docs/DEPLOY.md](./docs/DEPLOY.md).
+Important routes:
 
-Hosted deployment automation now lives in-repo:
+- `/`
+- `/view`
+- `/view/:vault`
+- `/operator`
+- `/operator/:vault`
 
-- [scripts/deploy-hosted.sh](./scripts/deploy-hosted.sh) publishes operator and public panels to the canonical web roots
-- [scripts/install-systemd.sh](./scripts/install-systemd.sh) installs the canonical systemd units from [ops/systemd](./ops/systemd)
+Notable locked-in functionality in `V1.0.0`:
 
-On the server, `/root/update-brigid.sh` should simply call the repo script instead of maintaining its own divergent logic.
+- unified public and operator UI
+- owner wallet claim flow
+- withdrawal request, cancel, delay, execute, and expiry handling
+- inline mobile WalletConnect signing assist with delayed wallet handoff
+- Telegram destination linking from the owner panel
+- public email subscription confirmation, resend, manage, and unsubscribe flows
+- withdrawal request notifications dispatched at the start of the delay phase
+- branded email templates with non-reply disclaimer
 
-## Setup
+## Chain Facts
+
+- Chain: BSC testnet
+- Chain ID: `97`
+- Factory: `0xFc946E68886841B20c33b4449578c4cC35De5165`
+- Start block: `95886539`
+- Validation vault: `0x813bd049593844d8350b055c5b08d713fcfa4d3f`
+
+## Local Development
 
 ```bash
-# From the brigid-beacon repo root
 npm install
-
-# Prisma
-# Use the BSC testnet parity profile from .env.example, then:
-npm run db:generate
-npm run db:push   # or db:migrate
+npm run dev:up
+npm run dev -w @brigid/vault-ui
 ```
 
-Database safety guardrails:
+Useful commands:
 
-- `npm run db:push` and `npm run db:migrate` now refuse production-like targets by default.
-- intentional production schema changes must use `MIGRATION_DATABASE_URL`
-- production writes require both:
-  - `ALLOW_PROD_DB_WRITE=yes`
-  - `PROD_DB_TARGET_CONFIRMATION=beacon-production`
-- guarded production commands:
-  - `npm run db:push:prod`
-  - `npm run db:migrate:prod`
+- `npm run typecheck`
+- `npm run ci`
+- `npm run dev:status`
+- `npm run dev:down`
 
-Recommended local parity env:
+Recommended local database:
 
 ```bash
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/beacon_bsc_testnet
-CHAIN_ID=97
-RPC_URL=https://bsc-testnet.nodereal.io/v1/<your-key>
-FACTORY_ADDRESS=0xFc946E68886841B20c33b4449578c4cC35De5165
-START_BLOCK=95886539
-POLL_INTERVAL_MS=60000
-BLOCK_CHUNK_SIZE=5000
-CONFIRMATIONS=0
-VITE_API_BASE_URL=http://localhost:3000
-VITE_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
-VITE_WALLETCONNECT_CDN_URL=https://esm.sh/@walletconnect/ethereum-provider@2.23.8
 ```
 
-Never point local `DATABASE_URL` at the live production `beacon` database. Keep runtime DB access and production migration DB access separate.
+## Deployment
 
-Operator mobile wallet note:
-
-- Set `VITE_WALLETCONNECT_PROJECT_ID` to enable the `iPhone / WalletConnect` path in `apps/operator-panel`
-- The WalletConnect provider is loaded on demand from `VITE_WALLETCONNECT_CDN_URL`, so it does not inflate the default operator bundle
-- This keeps desktop injected wallets working while allowing QR or deep-link pairing for mobile users
-
-Use [`./.env.example`](./.env.example) as the canonical env reference. For local split-host development, keep `VITE_API_BASE_URL` pointed at the API. For same-origin production deploys, prefer leaving it unset so the viewer uses relative `/api/...` paths and avoids CORS drift.
-
-## Run
-
-- **API:** `npm run dev -w @brigid/beacon-api` (port 3000)
-- **Worker:** `npm run dev -w @brigid/beacon-worker`
-- **Public panel:** `npm run dev -w @brigid/beacon-public-panel` (port 5174)
-- **Operator panel:** `npm run dev -w @brigid/beacon-operator-panel` (port 5175)
-- **Legacy viewer:** `npm run dev -w @brigid/beacon-viewer`
-- **Managed bring-up:** `npm run dev:up`
-- **Managed shutdown:** `npm run dev:down`
-- **Managed status:** `npm run dev:status`
-
-## Server Readiness
-
-For server testing, Beacon needs:
-
-- a PostgreSQL database reachable from `DATABASE_URL`
-- an RPC endpoint for the target chain in `RPC_URL`
-- the official factory address in `FACTORY_ADDRESS`
-- a public HTTPS URL for the API so Telegram can reach the webhook
-
-Recommended server env additions for the managed Telegram flow:
+Production is a single-branch workflow:
 
 ```bash
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_BOT_USERNAME=brigidbeaconbot
-TELEGRAM_LINK_SECRET=choose-a-long-random-secret
-TELEGRAM_WEBHOOK_SECRET=choose-another-long-random-secret
-VITE_API_BASE_URL=https://your-api-host
+git push origin main
 ```
 
-For a same-origin Beacon deployment behind one reverse proxy, prefer:
+That push triggers the server-side deploy hook, which:
 
-```bash
-# viewer served from https://beacon.example.com
-# API proxied on the same host under /api
-ALLOWED_ORIGINS=
-PUBLIC_APP_BASE_URL=https://beacon.example.com
-```
+- updates `/opt/brigidforge/repo`
+- installs canonical systemd units from `ops/systemd`
+- builds `apps/vault-ui`
+- publishes the UI to `/var/www/vault`
+- restarts `beacon-api.service`
+- restarts `beacon-worker.service`
+- runs health checks
 
-For a split-host deployment, explicitly configure both:
+## Docs
 
-```bash
-VITE_API_BASE_URL=https://api.example.com
-PUBLIC_APP_BASE_URL=https://beacon.example.com
-ALLOWED_ORIGINS=https://beacon.example.com
-```
-
-If you use the managed Telegram connect flow, Beacon owns the bot token and users no longer need to enter a Telegram chat ID or bot token in the UI.
-
-### Telegram webhook
-
-After the API is publicly reachable over HTTPS, point the bot webhook at Beacon:
-
-```bash
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://your-api-host/api/v1/integrations/telegram/webhook",
-    "secret_token": "<YOUR_TELEGRAM_WEBHOOK_SECRET>"
-  }'
-```
-
-Verify it:
-
-```bash
-curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
-```
-
-See [docs/LOCAL_DEMO.md](./docs/LOCAL_DEMO.md) for the canonical runbook.
-
-## Operational Notes
-
-- Beacon’s worker defends against shallow reorgs by rewinding the indexed head by `REORG_LOOKBACK_BLOCKS` before each replay pass. Keep that window aligned with the finality assumptions you are comfortable with for the target chain.
-- Global Telegram/Discord/webhook fallback delivery is now opt-in through `ENABLE_GLOBAL_NOTIFICATION_FALLBACK=true`. By default, events with no matching subscriptions are marked dispatched and logged instead of retrying forever.
-
-## Primary Validation Flow
-
-- Start the local stack with `npm run dev:up`
-- Open the local vault page for the indexed BSC testnet validation vault
-- Connect the indexed owner wallet
-- Claim the vault
-- Connect Telegram or add a webhook destination
-- Subscribe to one or more event kinds
-- Trigger a fresh event and confirm delivery
-
-## Validated Demo Flow
-
-This repo has now been validated end to end with:
-
-- official factory discovery and registry reconciliation
-- live vault timeline and status rendering
-- owner claim flow from an injected wallet
-- Telegram destination setup
-- Telegram alert delivery for fresh vault events
-
-See [docs/LOCAL_DEMO.md](./docs/LOCAL_DEMO.md) for exact runtime and deployment details.
-
-## Sprints
-
-1. ✅ Lock spec, schema, API contracts, scaffold
-2. Local blockchain indexer
-3. Database + API implementation
-4. Public viewer MVP
-5. Notification engine
-6. Production hardening
-
-See [docs/BEACON_MVP_SPEC.md](./docs/BEACON_MVP_SPEC.md) for full specification.
+- [docs/DEPLOY.md](./docs/DEPLOY.md)
+- [docs/development-log.md](./docs/development-log.md)
+- [docs/BEACON_MVP_SPEC.md](./docs/BEACON_MVP_SPEC.md)

@@ -122,7 +122,6 @@ function buildEventEmailBody(params: {
       '',
       params.formatted.body,
       '',
-      `Vault page: ${vaultUrl}`,
       manageUrl ? `Manage alerts: ${manageUrl}` : '',
       unsubscribeUrl ? `Unsubscribe: ${unsubscribeUrl}` : '',
       '',
@@ -131,7 +130,7 @@ function buildEventEmailBody(params: {
     html: buildBrandedEmailHtml({
       title: params.formatted.title,
       intro: 'A Brigid Beacon vault event matched your public email alert subscription.',
-      bodyHtml: `<p style="margin: 0 0 16px;">${escapeHtml(params.formatted.body).replace(/\n/g, '<br/>')}</p><p style="margin: 0; color: #94a3b8; font-size: 13px;">Vault page: <a href="${vaultUrl}" style="color: #7dd3fc; text-decoration: none;">${escapeHtml(vaultUrl)}</a></p>`,
+      bodyHtml: `<p style="margin: 0;">${escapeHtml(params.formatted.body).replace(/\n/g, '<br/>')}</p>`,
       primaryAction: { label: 'Open vault page', href: vaultUrl },
       secondaryAction: manageUrl ? { label: 'Manage email alerts', href: manageUrl } : unsubscribeUrl ? { label: 'Unsubscribe', href: unsubscribeUrl } : undefined,
       footer: 'You are receiving this because you subscribed to public email alerts for this vault.',

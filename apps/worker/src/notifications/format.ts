@@ -159,7 +159,7 @@ export function formatNotification(
     expiresAtLabel ? `Expires at: ${expiresAtLabel}` : '',
     `Block: ${event.blockNumber}`,
     `Tx: ${txLink}`,
-    publicViewerLink ? `Viewer: ${publicViewerLink}` : '',
+    publicViewerLink ? `Vault viewer: ${publicViewerLink}` : '',
     countdown ? `Countdown: ${countdown}` : '',
   ].filter(Boolean);
 
