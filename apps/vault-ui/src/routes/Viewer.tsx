@@ -226,17 +226,7 @@ export default function Viewer() {
 /* ── Status tab ───────────────────────────────────────────────── */
 
 function StatusTab({ metadata, status, purposeTexts }: { metadata: VaultMetadata; status: VaultStatus; purposeTexts: Record<string, string> }) {
-  const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1000));
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNowSeconds(Math.floor(Date.now() / 1000));
-    }, 1_000);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, []);
-
+  const nowSeconds = Math.floor(Date.now() / 1000);
   const activePendingRequest =
     status.pendingRequest && Number(status.pendingRequest.expiresAt) > nowSeconds
       ? status.pendingRequest
