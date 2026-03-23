@@ -41,6 +41,7 @@ export default function Viewer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('status');
+  const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1000));
   const [emailActionStatus, setEmailActionStatus] = useState<{
     tone: 'success' | 'error';
     title: string;
@@ -56,6 +57,15 @@ export default function Viewer() {
       setTab('notifications');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowSeconds(Math.floor(Date.now() / 1000));
+    }, 1_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!vaultAddress) return;
@@ -216,7 +226,7 @@ export default function Viewer() {
       </div>
 
       {/* Tab content */}
-      {tab === 'status' && <StatusTab metadata={metadata} status={status} purposeTexts={purposeTexts} />}
+      {tab === 'status' && <StatusTab metadata={metadata} status={status} purposeTexts={purposeTexts} nowSeconds={nowSeconds} />}
       {tab === 'activity' && <ActivityTab events={events} purposeTexts={purposeTexts} />}
       {tab === 'notifications' && <NotificationsTab vaultAddress={metadata.address} />}
     </div>
@@ -225,8 +235,7 @@ export default function Viewer() {
 
 /* ── Status tab ───────────────────────────────────────────────── */
 
-function StatusTab({ metadata, status, purposeTexts }: { metadata: VaultMetadata; status: VaultStatus; purposeTexts: Record<string, string> }) {
-  const nowSeconds = Math.floor(Date.now() / 1000);
+function StatusTab({ metadata, status, purposeTexts, nowSeconds }: { metadata: VaultMetadata; status: VaultStatus; purposeTexts: Record<string, string>; nowSeconds: number }) {
   const activePendingRequest =
     status.pendingRequest && Number(status.pendingRequest.expiresAt) > nowSeconds
       ? status.pendingRequest
