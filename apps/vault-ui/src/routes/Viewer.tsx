@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { NormalizedEvent, VaultMetadata, VaultStatus } from '@brigid/beacon-shared-types';
-import { fetchVaultBundle, createPublicEmailSubscription } from '../lib/api';
+import {
+  fetchVaultBundle,
+  createPublicEmailSubscription,
+  confirmPublicEmailSubscription,
+  unsubscribePublicEmailSubscription,
+} from '../lib/api';
 import {
   formatTokenAmount,
   formatUnixSeconds,
@@ -26,10 +31,16 @@ const REFRESH_MS = 60_000;
 export default function Viewer() {
   const { vault: vaultAddress = '' } = useParams<{ vault: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [bundle, setBundle] = useState<VaultBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('status');
+  const [emailActionStatus, setEmailActionStatus] = useState<{
+    tone: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!vaultAddress) return;
@@ -54,6 +65,57 @@ export default function Viewer() {
     const timer = window.setInterval(() => { void load(true); }, REFRESH_MS);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [vaultAddress]);
+
+  useEffect(() => {
+    if (!vaultAddress) return;
+    const confirmToken = searchParams.get('confirmEmailToken');
+    const unsubscribeToken = searchParams.get('unsubscribeEmailToken');
+    if (!confirmToken && !unsubscribeToken) return;
+
+    let cancelled = false;
+
+    async function handleEmailAction() {
+      try {
+        if (confirmToken) {
+          const result = await confirmPublicEmailSubscription(confirmToken);
+          if (!cancelled) {
+            setEmailActionStatus({
+              tone: 'success',
+              title: 'Subscription confirmed',
+              message: `${result.email} is now subscribed to vault alerts.`,
+            });
+          }
+        } else if (unsubscribeToken) {
+          const result = await unsubscribePublicEmailSubscription(unsubscribeToken);
+          if (!cancelled) {
+            setEmailActionStatus({
+              tone: 'success',
+              title: 'Subscription removed',
+              message: `${result.email} will no longer receive alerts for this vault.`,
+            });
+          }
+        }
+      } catch (actionError) {
+        if (!cancelled) {
+          setEmailActionStatus({
+            tone: 'error',
+            title: 'Email action failed',
+            message: actionError instanceof Error ? actionError.message : 'Unable to complete the email action.',
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.delete('confirmEmailToken');
+          nextParams.delete('unsubscribeEmailToken');
+          setSearchParams(nextParams, { replace: true });
+        }
+      }
+    }
+
+    void handleEmailAction();
+    return () => { cancelled = true; };
+  }, [vaultAddress, searchParams, setSearchParams]);
 
   if (loading) {
     return (
@@ -106,6 +168,21 @@ export default function Viewer() {
       </div>
 
       {/* Tabs */}
+      {emailActionStatus ? (
+        <div className={`rounded-[2rem] border px-5 py-4 ${
+          emailActionStatus.tone === 'success'
+            ? 'border-emerald-300/20 bg-emerald-300/10'
+            : 'border-rose-300/20 bg-rose-300/10'
+        }`}>
+          <p className={`text-sm uppercase tracking-widest ${
+            emailActionStatus.tone === 'success' ? 'text-emerald-300/70' : 'text-rose-300/70'
+          }`}>
+            {emailActionStatus.title}
+          </p>
+          <p className="mt-2 text-slate-100">{emailActionStatus.message}</p>
+        </div>
+      ) : null}
+
       <div className="flex gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
         {(['status', 'activity', 'notifications'] as Tab[]).map((t) => (
           <button
