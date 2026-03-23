@@ -461,7 +461,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
           setStatus('idle');
           setMessage(
             subscriptionStatus.confirmed
-              ? 'This email is already subscribed. Current selections are shown below. Use the secure manage link email to change or unsubscribe from this subscription.'
+              ? 'Email Address Already Subscribed. If you would like to make changes to an existing subscription click here.'
               : 'This email already has a pending subscription. Current selections are shown below. Confirm it from email before making changes.',
           );
           return;
@@ -648,7 +648,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
             disabled={!email.trim() || status === 'loading'}
             className="w-fit text-sm text-slate-400 underline decoration-slate-500/60 underline-offset-4 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Already subscribed? Email me a secure manage link
+            Click here
           </button>
         ) : null}
 
