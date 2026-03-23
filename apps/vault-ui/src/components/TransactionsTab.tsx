@@ -15,6 +15,7 @@ import {
   readOperatorSnapshot,
   requestWithdrawalTx,
   switchToOperatorChain,
+  walletNeedsSigningAssist,
   type OperatorVaultSnapshot,
   type WalletSession,
   type WalletConnectionKind,
@@ -130,7 +131,9 @@ export function TransactionsTab(props: {
   const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1000));
   const [requestOverride, setRequestOverride] = useState<RequestLifecycleView | null>(null);
   const [walletApproveUrl, setWalletApproveUrl] = useState<string | null>(null);
+  const [walletCountdown, setWalletCountdown] = useState<number | null>(null);
   const pendingScrollRestoreRef = useRef<number | null>(null);
+  const walletCountdownTimerRef = useRef<number | null>(null);
 
   // Must be called synchronously before the first await in a click handler.
   // For iOS WalletConnect, open the handoff page in a trusted user gesture
@@ -138,13 +141,45 @@ export function TransactionsTab(props: {
   function startWalletApprovalFlow(session: WalletSession) {
     const assistUrl = getWalletApprovalAssistUrl(session);
     setWalletApproveUrl(assistUrl);
+    if (assistUrl && walletNeedsSigningAssist(session)) {
+      setWalletCountdown(5);
+      if (walletCountdownTimerRef.current != null) {
+        window.clearInterval(walletCountdownTimerRef.current);
+      }
+      walletCountdownTimerRef.current = window.setInterval(() => {
+        setWalletCountdown((current) => {
+          if (current == null || current <= 1) {
+            if (walletCountdownTimerRef.current != null) {
+              window.clearInterval(walletCountdownTimerRef.current);
+            }
+            walletCountdownTimerRef.current = null;
+            return null;
+          }
+          return current - 1;
+        });
+      }, 1_000);
+      openWalletForSigning(session, 5_000);
+      return;
+    }
+    setWalletCountdown(null);
     openWalletForSigning(session);
   }
 
   function clearWalletApprovalFlow() {
     clearWalletOpenTimer();
+    if (walletCountdownTimerRef.current != null) {
+      window.clearInterval(walletCountdownTimerRef.current);
+    }
+    walletCountdownTimerRef.current = null;
+    setWalletCountdown(null);
     setWalletApproveUrl(null);
   }
+
+  useEffect(() => () => {
+    if (walletCountdownTimerRef.current != null) {
+      window.clearInterval(walletCountdownTimerRef.current);
+    }
+  }, []);
 
   async function persistPurposeText(purposeHash: string, purposeText: string) {
     const storedSession = getStoredOwnerSession();
@@ -429,7 +464,11 @@ export function TransactionsTab(props: {
           {busy && (
             <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm">
               <p className="text-amber-100">Connecting to wallet...</p>
-              {walletApproveUrl ? (
+              {walletCountdown != null ? (
+                <p className="mt-2 text-amber-200">
+                  Sending request to Wallet. Wallet will open in {walletCountdown} second{walletCountdown === 1 ? '' : 's'}.
+                </p>
+              ) : walletApproveUrl ? (
                 <a
                   href={walletApproveUrl}
                   className="mt-2 flex items-center justify-between text-amber-200 transition hover:text-amber-100"

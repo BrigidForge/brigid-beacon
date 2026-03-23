@@ -70,6 +70,7 @@ function buildBrandedEmailHtml(params: {
               ${button(params.secondaryAction, 'slate')}
             </div>
             ${params.footer ? `<p style="margin: 18px 0 0; color: #94a3b8; font-size: 12px; line-height: 1.7;">${escapeHtml(params.footer)}</p>` : ''}
+            <p style="margin: 18px 0 0; color: #94a3b8; font-size: 12px; line-height: 1.7;">Do not reply to this email. This mailbox is not monitored.</p>
           </div>
         </div>
       </div>
@@ -124,6 +125,8 @@ function buildEventEmailBody(params: {
       `Vault page: ${vaultUrl}`,
       manageUrl ? `Manage alerts: ${manageUrl}` : '',
       unsubscribeUrl ? `Unsubscribe: ${unsubscribeUrl}` : '',
+      '',
+      'Do not reply to this email. This mailbox is not monitored.',
     ].join('\n'),
     html: buildBrandedEmailHtml({
       title: params.formatted.title,
