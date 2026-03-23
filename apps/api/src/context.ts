@@ -255,10 +255,11 @@ export function decodeTelegramLinkToken(config: ApiConfig, token: string): Teleg
 
 const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
 const BREVO_SENDER_NAME = 'BRIGID BEACON NOTIFICATIONS';
+const EMAIL_LOGO_VERSION = '20260322-crop';
 
 function buildEmailLogoUrl(config: ApiConfig): string | null {
   if (!config.publicAppBaseUrl) return null;
-  return `${config.publicAppBaseUrl.replace(/\/$/, '')}/media/logo-transparent.png`;
+  return `${config.publicAppBaseUrl.replace(/\/$/, '')}/media/logo-transparent.png?v=${EMAIL_LOGO_VERSION}`;
 }
 
 function escapeHtml(value: string): string {

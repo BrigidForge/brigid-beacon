@@ -12,13 +12,16 @@ type PublicSubscriptionRow = {
 
 const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
 const BREVO_SENDER_NAME = 'BRIGID BEACON NOTIFICATIONS';
+const EMAIL_LOGO_VERSION = '20260322-crop';
 
 function buildVaultUrl(vaultAddress: string): string {
   return `${config.publicAppBaseUrl.replace(/\/$/, '')}/vault/${vaultAddress}`;
 }
 
 function buildEmailLogoUrl(): string | null {
-  return config.publicAppBaseUrl ? `${config.publicAppBaseUrl.replace(/\/$/, '')}/media/logo-transparent.png` : null;
+  return config.publicAppBaseUrl
+    ? `${config.publicAppBaseUrl.replace(/\/$/, '')}/media/logo-transparent.png?v=${EMAIL_LOGO_VERSION}`
+    : null;
 }
 
 function escapeHtml(value: string): string {
