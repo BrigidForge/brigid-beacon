@@ -24,11 +24,20 @@ export function VaultStatusTab(props: {
   metadata: VaultMetadata;
   status: VaultStatus;
   proof: DeploymentProof;
+  purposeTexts: Record<string, string>;
 }) {
-  const { metadata, status, proof } = props;
+  const { metadata, status, proof, purposeTexts } = props;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const activePendingRequest =
+    status.pendingRequest && Number(status.pendingRequest.expiresAt) > nowSeconds
+      ? status.pendingRequest
+      : null;
   const totalAllocationNum = Number(metadata.totalAllocation);
   const intervalCount = Number(metadata.intervalCount);
   const intervalDurationSec = Number(metadata.intervalDuration);
+  const pendingPurposeText = activePendingRequest
+    ? purposeTexts[activePendingRequest.purposeHash.toLowerCase()] ?? ''
+    : '';
 
   const remainingToVest = formatTokenAmount(
     String(Math.max(0, totalAllocationNum - Number(status.vestedAmount))),
@@ -54,6 +63,27 @@ export function VaultStatusTab(props: {
   return (
     <section className="space-y-6">
       <VaultSummaryPanel metadata={metadata} />
+
+      {activePendingRequest ? (
+        <div className="rounded-[2rem] border border-amber-300/20 bg-amber-300/10 p-6">
+          <p className="text-sm uppercase tracking-[0.25em] text-amber-300/80">Pending Request</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">The current withdrawal request is in progress and waiting for its next execution window.</p>
+          <dl className="mt-5 grid gap-4 md:grid-cols-2">
+            <Row label="Amount" value={formatTokenAmount(activePendingRequest.amount)} />
+            <Row label="Allocation" value={activePendingRequest.requestType === 'protected' ? 'Vested allocation' : 'Surplus allocation'} />
+            <Row label="Requested at" value={formatUnixSeconds(activePendingRequest.requestedAt)} />
+            <Row label="Executable at" value={formatUnixSeconds(activePendingRequest.executableAt)} />
+            <Row label="Expires at" value={formatUnixSeconds(activePendingRequest.expiresAt)} />
+            <Row label="Status" value={activePendingRequest.isExecutable ? 'Executable now' : activePendingRequest.isCancelable ? 'Cancelable' : 'Waiting for execution'} />
+          </dl>
+          {pendingPurposeText ? (
+            <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Purpose</p>
+              <p className="mt-2 text-sm leading-6 text-slate-100">{pendingPurposeText}</p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Vesting + Surplus containers */}
       <div className="grid gap-6 lg:grid-cols-2">

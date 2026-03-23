@@ -323,6 +323,23 @@ export function TransactionsTab(props: {
   const cancelButtonActive = walletMatchesOwner && hasActiveBeaconSession && state === 'cancel' && !busy;
   const executeButtonActive = hasActiveBeaconSession && state === 'exec' && !busy && walletConnected;
   const requestButtonActive = !requestButtonDisabled;
+  const mostRecentPhase = !latestRequest
+    ? null
+    : latestRequest.outcome === 'canceled'
+      ? 'Canceled'
+      : latestRequest.outcome === 'executed'
+        ? 'Executed'
+        : latestRequest.outcome === 'expired'
+          ? 'Expired'
+          : state === 'cancel'
+            ? 'Cancel phase'
+            : state === 'delay'
+              ? 'Delay phase'
+              : state === 'exec'
+                ? 'Execution phase'
+                : state === 'expired'
+                  ? 'Expired'
+                  : 'Requested';
 
   return (
     <section className="space-y-6">
@@ -433,7 +450,7 @@ export function TransactionsTab(props: {
 
         <div className="space-y-6">
           {latestRequest ? (
-            <TimelineComponent requestedAt={latestRequest.requestedAt} cancelWindow={snapshot.cancelWindow} executableAt={latestRequest.executableAt} expiresAt={latestRequest.expiresAt} nowSeconds={nowSeconds} outcome={latestRequest.outcome} settledAt={latestRequest.settledAt} />
+            <TimelineComponent requestedAt={latestRequest.requestedAt} cancelWindow={snapshot.cancelWindow} executableAt={latestRequest.executableAt} expiresAt={latestRequest.expiresAt} nowSeconds={nowSeconds} purposeText={requestPurposeText || undefined} outcome={latestRequest.outcome} settledAt={latestRequest.settledAt} />
           ) : (
             <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
               <p className="text-sm uppercase tracking-[0.25em] text-slate-400">Pending Request</p>
@@ -452,12 +469,13 @@ export function TransactionsTab(props: {
             </div>
             {latestRequest ? (
               <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{latestRequest.outcome === 'active' ? 'Current request' : 'Most recent request'}</p>
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Most recent request</p>
                 <p className="mt-2 text-sm text-white">{formatTokenAmount(latestRequest.amount.toString())} {snapshot.tokenSymbol}</p>
                 <p className="mt-2 text-sm text-slate-300">Purpose: {requestPurposeText || 'Purpose text unavailable on this device'}</p>
                 <p className="mt-2 text-xs text-slate-400">
                   {latestRequest.requestType === 'protected' ? 'Protected' : 'Excess'} request · Requested {formatUnixSeconds(String(latestRequest.requestedAt))} · Expires {formatUnixSeconds(String(latestRequest.expiresAt))}
                 </p>
+                <p className="mt-2 text-xs text-slate-400">Phase: {mostRecentPhase}</p>
                 <p className="mt-2 text-xs text-slate-400">Status: {latestRequest.outcome === 'active' ? state.toUpperCase() : latestRequest.outcome.toUpperCase()}</p>
                 {explorerBase ? (
                   <a href={`${explorerBase}/address/${props.vaultAddress}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm text-sky-200 hover:text-sky-100">

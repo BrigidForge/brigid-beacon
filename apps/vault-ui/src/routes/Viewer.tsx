@@ -124,7 +124,7 @@ export default function Viewer() {
       </div>
 
       {/* Tab content */}
-      {tab === 'status' && <StatusTab metadata={metadata} status={status} />}
+      {tab === 'status' && <StatusTab metadata={metadata} status={status} purposeTexts={purposeTexts} />}
       {tab === 'activity' && <ActivityTab events={events} purposeTexts={purposeTexts} />}
       {tab === 'notifications' && <NotificationsTab vaultAddress={metadata.address} />}
     </div>
@@ -133,18 +133,29 @@ export default function Viewer() {
 
 /* ── Status tab ───────────────────────────────────────────────── */
 
-function StatusTab({ metadata, status }: { metadata: VaultMetadata; status: VaultStatus }) {
+function StatusTab({ metadata, status, purposeTexts }: { metadata: VaultMetadata; status: VaultStatus; purposeTexts: Record<string, string> }) {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const activePendingRequest =
+    status.pendingRequest && Number(status.pendingRequest.expiresAt) > nowSeconds
+      ? status.pendingRequest
+      : null;
+  const pendingPurposeText = activePendingRequest
+    ? purposeTexts[activePendingRequest.purposeHash.toLowerCase()] ?? ''
+    : '';
+
   return (
     <div className="flex flex-col gap-4">
-      {status.pendingRequest && (
+      {activePendingRequest && (
         <div className="rounded-[2rem] border border-amber-300/20 bg-amber-300/10 p-5">
           <p className="text-xs uppercase tracking-widest text-amber-300/70">Pending Request</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <Field label="Amount" value={formatTokenAmount(status.pendingRequest.amount)} />
-            <Field label="Type" value={status.pendingRequest.requestType} />
-            <Field label="Executable at" value={formatUnixSeconds(status.pendingRequest.executableAt)} />
-            <Field label="Expires at" value={`${formatUnixSeconds(status.pendingRequest.expiresAt)} (${formatRelativeCountdown(status.pendingRequest.expiresAt)})`} />
+            <Field label="Amount" value={formatTokenAmount(activePendingRequest.amount)} />
+            <Field label="Type" value={activePendingRequest.requestType} />
+            <Field label="Requested at" value={formatUnixSeconds(activePendingRequest.requestedAt)} />
+            <Field label="Executable at" value={formatUnixSeconds(activePendingRequest.executableAt)} />
+            <Field label="Expires at" value={`${formatUnixSeconds(activePendingRequest.expiresAt)} (${formatRelativeCountdown(activePendingRequest.expiresAt)})`} />
           </div>
+          {pendingPurposeText ? <p className="mt-3 text-sm leading-6 text-slate-200">{pendingPurposeText}</p> : null}
         </div>
       )}
 

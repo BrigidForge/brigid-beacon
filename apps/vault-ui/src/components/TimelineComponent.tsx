@@ -20,6 +20,7 @@ export function TimelineComponent(props: {
   executableAt: number;
   expiresAt: number;
   nowSeconds: number;
+  purposeText?: string;
   outcome?: TimelineOutcome;
   settledAt?: number | null;
 }) {
@@ -100,6 +101,7 @@ export function TimelineComponent(props: {
         <div>
           <p className="text-sm uppercase tracking-[0.22em] text-slate-400">Withdrawal Timeline</p>
           <p className="mt-2 text-lg font-medium text-white">{phaseLabel}</p>
+          {props.purposeText ? <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Reason: {props.purposeText}</p> : null}
         </div>
         <div className="text-right text-sm text-slate-300">
           <p>Requested {formatUnixSeconds(String(props.requestedAt))}</p>
@@ -110,10 +112,10 @@ export function TimelineComponent(props: {
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {segments.map((segment) => (
           <div key={segment.label}>
-            <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              <span>{segment.label}</span>
+            <div className="mb-2 flex min-h-[2.5rem] items-start justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-slate-400">
+              <span className="leading-5">{segment.label}</span>
               {!isSettled ? (
-                <span className={segment.complete ? 'text-emerald-200' : segment.active ? 'text-white' : 'text-slate-500'}>
+                <span className={`shrink-0 leading-5 ${segment.complete ? 'text-emerald-200' : segment.active ? 'text-white' : 'text-slate-500'}`}>
                   {Math.round(segment.progress)}%
                 </span>
               ) : null}

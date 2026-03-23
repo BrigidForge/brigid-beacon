@@ -155,7 +155,7 @@ export function OperatorVaultWorkspace(props: {
       </section>
 
       {activeTab === 'status' ? (
-        <VaultStatusTab metadata={metadata} status={status} proof={proof} />
+        <VaultStatusTab metadata={metadata} status={status} proof={proof} purposeTexts={purposeTexts} />
       ) : activeTab === 'withdrawals' ? (
         <TransactionsTab
           vaultAddress={metadata.address}
