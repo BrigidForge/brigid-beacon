@@ -24,6 +24,8 @@ const EVENT_KINDS = new Set([
 const PUBLIC_EVENT_KINDS = new Set([
   'vault_funded',
   'excess_deposited',
+  'protected_withdrawal_requested',
+  'excess_withdrawal_requested',
   'withdrawal_executed',
   'request_expired',
 ]);

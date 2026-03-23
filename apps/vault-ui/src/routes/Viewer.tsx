@@ -338,6 +338,8 @@ function ActivityTab({ events, purposeTexts }: { events: NormalizedEvent[]; purp
 const ALL_EVENT_KINDS = [
   'vault_funded',
   'excess_deposited',
+  'protected_withdrawal_requested',
+  'excess_withdrawal_requested',
   'withdrawal_executed',
   'request_expired',
 ];
