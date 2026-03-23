@@ -628,6 +628,17 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
           <p className="rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">{message}</p>
         )}
 
+        {existingStatus?.confirmed && !manageMode && message === 'Email Address Already Subscribed. If you would like to make changes to an existing subscription click here.' ? (
+          <button
+            type="button"
+            onClick={() => void handleSendManageLink()}
+            disabled={!email.trim() || status === 'loading'}
+            className="w-fit text-sm text-slate-400 underline decoration-slate-500/60 underline-offset-4 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Click here
+          </button>
+        ) : null}
+
         <button
           type="submit"
           disabled={
@@ -640,17 +651,6 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
         >
           {status === 'loading' ? 'Working…' : actionLabel}
         </button>
-
-        {existingStatus?.confirmed && !manageMode ? (
-          <button
-            type="button"
-            onClick={() => void handleSendManageLink()}
-            disabled={!email.trim() || status === 'loading'}
-            className="w-fit text-sm text-slate-400 underline decoration-slate-500/60 underline-offset-4 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Click here
-          </button>
-        ) : null}
 
         {manageMode ? (
           <button
