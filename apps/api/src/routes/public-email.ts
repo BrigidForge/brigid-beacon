@@ -111,7 +111,7 @@ export async function registerPublicEmailRoutes(app: FastifyInstance, ctx: Retur
       message: alreadyConfirmed
         ? 'Email follow is already confirmed for this vault.'
         : emailDelivery.deliveryMode === 'brevo'
-          ? 'Confirmation email sent through Brevo.'
+          ? `Confirmation email sent to: ${email}`
           : 'Brevo email delivery is not active, so Beacon is returning a preview confirmation link for local use.',
       ...(isPreviewMode && {
         previewConfirmToken: confirmationToken,

@@ -742,9 +742,19 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
               </p>
             ) : null}
             {canRequestManageLink ? (
-              <p className="mt-2 text-emerald-50/90">
-                This subscription is active. To update or cancel it, request a secure management link below.
-              </p>
+              <div className="mt-2">
+                <p className="text-emerald-50/90">
+                  This subscription is active. To update or cancel it, request a secure management link below.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleSendManageLink()}
+                  disabled={!email.trim() || status === 'loading'}
+                  className="mt-2 w-fit text-sm text-sky-300 underline decoration-sky-400/60 underline-offset-4 transition hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Send another secure manage link
+                </button>
+              </div>
             ) : null}
             {existingStatus?.disabled ? (
               <p className="mt-2 text-rose-50/90">
@@ -809,17 +819,6 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
             className="w-fit text-sm text-sky-300 underline decoration-sky-400/60 underline-offset-4 transition hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Re-send confirmation email
-          </button>
-        ) : null}
-
-        {canRequestManageLink ? (
-          <button
-            type="button"
-            onClick={() => void handleSendManageLink()}
-            disabled={!email.trim() || status === 'loading'}
-            className="w-fit text-sm text-sky-300 underline decoration-sky-400/60 underline-offset-4 transition hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Send another secure manage link
           </button>
         ) : null}
 
