@@ -49,10 +49,10 @@ function buildBrandedEmailHtml(params: {
   };
 
   return `
-    <div style="margin: 0; padding: 32px 18px; background: #020617; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+    <div style="margin: 0; padding: 32px 18px; background: #ffffff; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
       <div style="max-width: 640px; margin: 0 auto;">
         <div style="margin-bottom: 20px; text-align: center;">
-          ${logoUrl ? `<img src="${logoUrl}" alt="Brigid Beacon" style="max-width: 240px; width: 100%; height: auto; margin: 0 auto 10px; display: block;" />` : ''}
+          ${logoUrl ? `<img src="${logoUrl}" alt="Brigid Beacon" style="max-width: 480px; width: 100%; height: auto; margin: 0 auto 10px; display: block;" />` : ''}
         </div>
         <div style="border: 1px solid rgba(255,255,255,0.08); border-radius: 28px; overflow: hidden; background: linear-gradient(180deg, rgba(15,23,42,0.96) 0%, rgba(2,6,23,0.98) 100%); box-shadow: 0 24px 80px rgba(15,23,42,0.45);">
           <div style="padding: 28px 28px 22px; background: radial-gradient(circle at top left, rgba(251,191,36,0.18), transparent 28%), radial-gradient(circle at 80% 20%, rgba(56,189,248,0.14), transparent 22%);">
