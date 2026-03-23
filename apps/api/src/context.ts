@@ -182,8 +182,8 @@ export function buildPublicConfirmationUrls(config: ApiConfig, vaultAddress: str
 
   const baseUrl = config.publicAppBaseUrl.replace(/\/$/, '');
   return {
-    confirmUrl: `${baseUrl}/vault/${vaultAddress}?confirmEmailToken=${encodeURIComponent(params.confirmToken)}`,
-    unsubscribeUrl: `${baseUrl}/vault/${vaultAddress}?unsubscribeEmailToken=${encodeURIComponent(params.unsubscribeToken)}`,
+    confirmUrl: `${baseUrl}/view/${vaultAddress}?confirmEmailToken=${encodeURIComponent(params.confirmToken)}`,
+    unsubscribeUrl: `${baseUrl}/view/${vaultAddress}?unsubscribeEmailToken=${encodeURIComponent(params.unsubscribeToken)}`,
   };
 }
 

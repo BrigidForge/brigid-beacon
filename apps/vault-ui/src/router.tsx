@@ -12,6 +12,7 @@ export default function Router() {
         <Route path="/" element={<Home />} />
         <Route path="/view" element={<ViewerLanding />} />
         <Route path="/view/:vault" element={<Viewer />} />
+        <Route path="/vault/:vault" element={<Viewer />} />
         <Route path="/operator" element={<Operator />} />
         <Route path="/operator/:vault" element={<Operator />} />
       </Routes>
