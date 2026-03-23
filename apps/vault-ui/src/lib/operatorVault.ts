@@ -496,29 +496,87 @@ export function walletNeedsSigningAssist(session: WalletSession): boolean {
 }
 
 let walletOpenTimer: number | null = null;
+let walletAssistCountdownTimer: number | null = null;
+let walletAssistWindow: Window | null = null;
 
 export function clearWalletOpenTimer(): void {
   if (walletOpenTimer != null && typeof window !== 'undefined') {
     window.clearTimeout(walletOpenTimer);
   }
+  if (walletAssistCountdownTimer != null && typeof window !== 'undefined') {
+    window.clearInterval(walletAssistCountdownTimer);
+  }
   walletOpenTimer = null;
+  walletAssistCountdownTimer = null;
+  if (walletAssistWindow && !walletAssistWindow.closed) {
+    try {
+      walletAssistWindow.close();
+    } catch {
+      // ignore assist-window cleanup issues
+    }
+  }
+  walletAssistWindow = null;
 }
 
 export function getWalletApprovalAssistUrl(session: WalletSession): string | null {
   return getWalletOpenUrl(session);
 }
 
+function renderWalletAssistWindow(target: Window, redirect: string, secondsRemaining: number): void {
+  target.document.title = 'Open Wallet';
+  target.document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#020617;color:#e2e8f0;font-family:ui-sans-serif,system-ui,sans-serif;padding:24px;">
+      <div style="width:100%;max-width:420px;border:1px solid rgba(148,163,184,0.2);background:rgba(15,23,42,0.92);border-radius:28px;padding:28px;box-shadow:0 24px 80px rgba(15,23,42,0.55);">
+        <p style="margin:0;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(251,191,36,0.78);">Wallet Approval</p>
+        <h1 style="margin:16px 0 0;font-size:28px;line-height:1.15;color:#fff;">Sending request to Wallet.</h1>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.7;color:rgba(226,232,240,0.92);">Wallet will open in <strong>${secondsRemaining}</strong> second${secondsRemaining === 1 ? '' : 's'}.</p>
+        <p style="margin:14px 0 0;font-size:14px;line-height:1.7;color:rgba(148,163,184,0.95);">If nothing happens, use the button below to open your wallet manually.</p>
+        <a href="${redirect}" style="display:inline-block;margin-top:20px;padding:12px 18px;border-radius:999px;background:#fbbf24;color:#0f172a;font-weight:700;text-decoration:none;">Open Wallet Now</a>
+      </div>
+    </div>
+  `;
+}
+
 // Schedules a same-tab handoff back into the connected wallet app after the
 // WalletConnect request has been started from the page.
-export function openWalletForSigning(session: WalletSession, delayMs = 900): string | null {
+export function openWalletForSigning(session: WalletSession, delayMs = 5_000): string | null {
   clearWalletOpenTimer();
   const redirect = getWalletOpenUrl(session);
   if (!redirect || typeof window === 'undefined' || !walletNeedsSigningAssist(session)) {
     return redirect;
   }
 
+  const popup = window.open('', 'brigid-wallet-assist', 'popup=yes,width=460,height=640');
+  if (popup && !popup.closed) {
+    walletAssistWindow = popup;
+    let secondsRemaining = Math.max(1, Math.ceil(delayMs / 1000));
+    renderWalletAssistWindow(popup, redirect, secondsRemaining);
+    walletAssistCountdownTimer = window.setInterval(() => {
+      secondsRemaining -= 1;
+      if (secondsRemaining <= 0) {
+        if (walletAssistCountdownTimer != null) {
+          window.clearInterval(walletAssistCountdownTimer);
+        }
+        walletAssistCountdownTimer = null;
+        return;
+      }
+      if (walletAssistWindow && !walletAssistWindow.closed) {
+        renderWalletAssistWindow(walletAssistWindow, redirect, secondsRemaining);
+      }
+    }, 1_000);
+  }
+
   walletOpenTimer = window.setTimeout(() => {
+    if (walletAssistCountdownTimer != null) {
+      window.clearInterval(walletAssistCountdownTimer);
+    }
+    walletAssistCountdownTimer = null;
     walletOpenTimer = null;
+    if (walletAssistWindow && !walletAssistWindow.closed) {
+      walletAssistWindow.location.assign(redirect);
+      walletAssistWindow = null;
+      return;
+    }
     window.location.assign(redirect);
   }, delayMs);
 

@@ -449,8 +449,8 @@ export function TransactionsTab(props: {
         </div>
 
         <div className="space-y-6">
-          {latestRequest ? (
-            <TimelineComponent requestedAt={latestRequest.requestedAt} cancelWindow={snapshot.cancelWindow} executableAt={latestRequest.executableAt} expiresAt={latestRequest.expiresAt} nowSeconds={nowSeconds} purposeText={requestPurposeText || undefined} outcome={latestRequest.outcome} settledAt={latestRequest.settledAt} />
+          {currentRequest ? (
+            <TimelineComponent requestedAt={currentRequest.requestedAt} cancelWindow={snapshot.cancelWindow} executableAt={currentRequest.executableAt} expiresAt={currentRequest.expiresAt} nowSeconds={nowSeconds} purposeText={requestPurposeText || undefined} outcome={currentRequest.outcome} settledAt={currentRequest.settledAt} />
           ) : (
             <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
               <p className="text-sm uppercase tracking-[0.25em] text-slate-400">Pending Request</p>
