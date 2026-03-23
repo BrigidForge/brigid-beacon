@@ -396,3 +396,101 @@ test('runDispatcherCycle skips delayed withdrawal request notifications once a t
     Date.now = originalDateNow;
   }
 });
+
+test('runDispatcherCycle sends public email notifications for actionable withdrawal requests', async () => {
+  await resetTables();
+
+  await prisma.vault.create({
+    data: {
+      id: vaultAddress,
+      chainId: 31337,
+      owner: ownerAddress,
+      token: tokenAddress,
+      totalAllocation: '1000',
+      startTime: '100',
+      cliffDuration: '0',
+      intervalDuration: '60',
+      intervalCount: '4',
+      cancelWindow: '20',
+      withdrawalDelay: '40',
+      executionWindow: '60',
+      deployedAtBlock: 10,
+      deployedAtTx: '0xworkerdeploy',
+      deployer: ownerAddress,
+    },
+  });
+
+  const follower = await prisma.publicEmailFollower.create({
+    data: {
+      email: 'alerts@example.com',
+      verifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+    },
+  });
+
+  await prisma.publicEmailSubscription.create({
+    data: {
+      followerId: follower.id,
+      vaultAddress,
+      eventKindsJson: ['protected_withdrawal_requested'],
+      confirmedAt: new Date('2026-01-01T00:00:00.000Z'),
+      unsubscribeTokenHash: 'unsubscribe-hash',
+    },
+  });
+
+  const requestEventId = '31337:0xpublicwithdrawrequest:0';
+  await prisma.beaconEvent.create({
+    data: {
+      id: requestEventId,
+      vaultAddress,
+      kind: 'protected_withdrawal_requested',
+      blockNumber: 11,
+      transactionHash: '0xpublicwithdrawrequest',
+      logIndex: 0,
+      timestamp: new Date('2026-01-01T00:01:00.000Z'),
+      payload: {
+        owner: ownerAddress,
+        amount: '250',
+        purposeHash: '0xpublic123',
+        requestedAt: '1000',
+        executableAt: '1040',
+        expiresAt: '1100',
+      },
+    },
+  });
+
+  const originalDateNow = Date.now;
+
+  try {
+    Date.now = () => 1_021_000;
+
+    const result = await runDispatcherCycle({
+      prismaClient: prisma as never,
+      providers: [],
+      sendSubscription: async () => {
+        throw new Error('should not send owner subscription notifications');
+      },
+    });
+
+    assert.equal(result.processed, 1);
+    assert.equal(result.sent, 0);
+    assert.equal(result.errors, 1);
+
+    const deliveries = await prisma.publicEmailDelivery.findMany({
+      where: { beaconEventId: requestEventId },
+      include: {
+        subscription: {
+          include: {
+            follower: true,
+          },
+        },
+      },
+    });
+
+    assert.equal(deliveries.length, 1);
+    assert.equal(deliveries[0]?.subscription.follower.email, 'alerts@example.com');
+    assert.equal(deliveries[0]?.status, 'failed');
+    assert.match(deliveries[0]?.errorMessage ?? '', /Brevo public email delivery is not configured/i);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
