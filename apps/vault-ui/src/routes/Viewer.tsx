@@ -528,6 +528,42 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
     }
   }
 
+  async function handleResendConfirmation() {
+    if (!email.trim() || selected.length === 0) return;
+    setStatus('loading');
+    setMessage('');
+    setSubscriptionResult(null);
+    try {
+      const result = await createPublicEmailSubscription({
+        vaultAddress,
+        email: email.trim().toLowerCase(),
+        eventKinds: selected,
+      });
+      setSubscriptionResult(result);
+      setManageLinkPreview(null);
+      setExistingStatus({
+        vaultAddress: result.vaultAddress,
+        email: result.email,
+        subscribed: true,
+        confirmed: false,
+        disabled: false,
+        eventKinds: result.eventKinds,
+        confirmedAt: null,
+        disabledAt: null,
+      });
+      setManageMode(false);
+      setStatus('success');
+      setMessage(
+        result.deliveryMode === 'brevo'
+          ? 'Confirmation email re-sent. Please check your inbox and spam folder.'
+          : 'Confirmation link refreshed. Use the preview link below to continue locally.',
+      );
+    } catch (err) {
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Unable to resend the confirmation email.');
+    }
+  }
+
   async function handleSendManageLink() {
     if (!email.trim()) return;
     setStatus('loading');
@@ -613,6 +649,11 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
             ) : null}
           </div>
         ) : null}
+        {subscriptionResult?.deliveryMode === 'brevo' && subscriptionResult.status === 'pending_confirmation' ? (
+          <div className="mt-4 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4 text-sm text-sky-100">
+            Check your inbox and spam folder for the confirmation email before trying again.
+          </div>
+        ) : null}
         {manageLinkPreview?.deliveryMode === 'preview' ? (
           <div className="mt-4 space-y-3 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4 text-sm text-sky-100">
             <p className="font-medium text-white">Preview management link</p>
@@ -675,6 +716,11 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
                 Current subscriptions: {existingStatus.eventKinds.map((kind) => EVENT_LABELS[kind] ?? kind).join(', ')}
               </p>
             ) : null}
+            {existingStatus?.subscribed && !existingStatus.disabled && !existingStatus.confirmed ? (
+              <p className="mt-2 text-amber-50/90">
+                Check your inbox and spam folder for the confirmation email. If it never arrived, you can resend it below.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -727,6 +773,17 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
         >
           {status === 'loading' ? 'Working…' : actionLabel}
         </button>
+
+        {existingStatus?.subscribed && !existingStatus.disabled && !existingStatus.confirmed && !manageMode ? (
+          <button
+            type="button"
+            onClick={() => void handleResendConfirmation()}
+            disabled={!email.trim() || selected.length === 0 || status === 'loading'}
+            className="w-fit text-sm text-sky-300 underline decoration-sky-400/60 underline-offset-4 transition hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Re-send confirmation email
+          </button>
+        ) : null}
 
         {manageMode ? (
           <button
