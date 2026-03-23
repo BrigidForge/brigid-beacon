@@ -33,6 +33,35 @@ const EVENT_OPTIONS = [
   'excess_deposited',
 ] as const;
 
+const DEFAULT_EVENT_KINDS = [
+  'vault_funded',
+  'protected_withdrawal_requested',
+  'excess_withdrawal_requested',
+  'withdrawal_executed',
+  'request_expired',
+] as const;
+
+function formatNotificationEventLabel(kind: string): string {
+  switch (kind) {
+    case 'vault_funded':
+      return 'Vault funded';
+    case 'protected_withdrawal_requested':
+      return 'Vested withdrawal actionable';
+    case 'excess_withdrawal_requested':
+      return 'Surplus withdrawal actionable';
+    case 'withdrawal_executed':
+      return 'Withdrawal executed';
+    case 'request_expired':
+      return 'Request expired';
+    case 'withdrawal_canceled':
+      return 'Withdrawal canceled';
+    case 'excess_deposited':
+      return 'Excess deposited';
+    default:
+      return formatStateLabel(kind);
+  }
+}
+
 function getTelegramAppDeepLink(botUsername: string, webLink: string): string {
   try {
     const parsed = new URL(webLink);
@@ -77,7 +106,7 @@ export function OwnerSettings(props: {
   const [destinationLabel, setDestinationLabel] = useState('Ops webhook');
   const [destinationUrl, setDestinationUrl] = useState('https://example.com/hook');
   const [selectedDestinationId, setSelectedDestinationId] = useState('');
-  const [selectedEventKinds, setSelectedEventKinds] = useState<string[]>(['withdrawal_executed', 'request_expired']);
+  const [selectedEventKinds, setSelectedEventKinds] = useState<string[]>([...DEFAULT_EVENT_KINDS]);
   const [telegramConnectLink, setTelegramConnectLink] = useState<{ botUsername: string; deepLinkUrl: string; expiresAt: string } | null>(null);
   const [awaitingTelegramConnection, setAwaitingTelegramConnection] = useState(false);
   const [walletOpenUrl, setWalletOpenUrl] = useState<string | null>(null);
@@ -374,11 +403,14 @@ export function OwnerSettings(props: {
           <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Subscription</p>
           {selectedDestination ? <p className="mt-3 text-sm text-slate-300">Selected: <span className="text-white">{selectedDestination.label}</span></p> : null}
           {duplicateSubscription ? <p className="mt-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-50">This destination already has an active subscription for this vault. Saving here will update its event selections.</p> : null}
+          <p className="mt-3 text-sm leading-6 text-slate-400">
+            Withdrawal request alerts are sent only after the cancel window closes, so the actionable request options below stay quiet during the initial cancellation period.
+          </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {EVENT_OPTIONS.map((kind) => (
               <label key={kind} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                 <input type="checkbox" checked={selectedEventKinds.includes(kind)} onChange={() => toggleEventKind(kind)} className="mt-1" />
-                <span className="text-sm text-white">{formatStateLabel(kind)}</span>
+                <span className="text-sm text-white">{formatNotificationEventLabel(kind)}</span>
               </label>
             ))}
           </div>
