@@ -64,13 +64,12 @@ function AddToHomeScreenPreview() {
 
 export default function Layout({ children, headerRight, banners }: LayoutProps) {
   const [showMobileNonSafariHint, setShowMobileNonSafariHint] = useState(false);
-  const [iosInstallHintEligible, setIosInstallHintEligible] = useState(false);
+  const [showIosInstallHintToggle, setShowIosInstallHintToggle] = useState(false);
   const [showIosInstallHint, setShowIosInstallHint] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const installSeen = window.localStorage.getItem('beacon_ios_pwa_opened_once') === '1';
     const dismissed = window.localStorage.getItem('beacon_ios_install_hint_collapsed') === '1';
     const standalone =
       window.matchMedia?.('(display-mode: standalone)').matches ||
@@ -87,11 +86,12 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
 
     if (standalone) {
       window.localStorage.setItem('beacon_ios_pwa_opened_once', '1');
+      window.localStorage.setItem('beacon_ios_install_hint_collapsed', '1');
     }
 
-    const eligible = isIos && isSafari && !standalone && !installSeen;
+    const eligible = isIos && isSafari && !standalone;
     setShowMobileNonSafariHint(isMobile && !standalone && !isSafari);
-    setIosInstallHintEligible(eligible);
+    setShowIosInstallHintToggle(eligible);
     setShowIosInstallHint(eligible && !dismissed);
   }, []);
 
@@ -140,7 +140,7 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
           </div>
         </div>
       ) : null}
-      {iosInstallHintEligible && !showIosInstallHint ? (
+      {showIosInstallHintToggle && !showIosInstallHint ? (
         <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-4">
           <button
             type="button"
