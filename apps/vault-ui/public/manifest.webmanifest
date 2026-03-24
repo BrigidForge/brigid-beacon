@@ -1,6 +1,6 @@
 {
   "name": "Brigid Beacon",
-  "short_name": "Beacon",
+  "short_name": "Brigid Beacon",
   "description": "Brigid Beacon for BrigidVault viewing, operator actions, and live vault notifications.",
   "start_url": "/",
   "scope": "/",
