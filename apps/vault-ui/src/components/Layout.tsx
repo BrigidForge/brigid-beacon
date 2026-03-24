@@ -63,12 +63,14 @@ function AddToHomeScreenPreview() {
 }
 
 export default function Layout({ children, headerRight, banners }: LayoutProps) {
+  const [showMobileNonSafariHint, setShowMobileNonSafariHint] = useState(false);
   const [iosInstallHintEligible, setIosInstallHintEligible] = useState(false);
   const [showIosInstallHint, setShowIosInstallHint] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const installSeen = window.localStorage.getItem('beacon_ios_pwa_opened_once') === '1';
     const dismissed = window.localStorage.getItem('beacon_ios_install_hint_collapsed') === '1';
     const standalone =
       window.matchMedia?.('(display-mode: standalone)').matches ||
@@ -79,9 +81,16 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
     const userAgent = navigator.userAgent ?? '';
     const isIos = /iPad|iPhone|iPod/i.test(userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(userAgent);
+    const isMobile = isIos || isAndroid;
     const isSafari = /Safari/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(userAgent);
 
-    const eligible = isIos && isSafari && !standalone;
+    if (standalone) {
+      window.localStorage.setItem('beacon_ios_pwa_opened_once', '1');
+    }
+
+    const eligible = isIos && isSafari && !standalone && !installSeen;
+    setShowMobileNonSafariHint(isMobile && !standalone && !isSafari);
     setIosInstallHintEligible(eligible);
     setShowIosInstallHint(eligible && !dismissed);
   }, []);
@@ -121,6 +130,16 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
           </div>
         </div>
       </header>
+      {showMobileNonSafariHint ? (
+        <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-4">
+          <div className="rounded-[1.75rem] border border-amber-300/20 bg-amber-300/10 px-4 py-4 text-sm text-amber-50 shadow-[0_18px_50px_rgba(15,23,42,0.22)]">
+            <p className="font-medium text-white">For iPhone and iPad, install Brigid Beacon from Safari</p>
+            <p className="mt-2 leading-6 text-amber-50/90">
+              You are using a mobile browser other than Safari. To add Brigid Beacon to your home screen and enable iPhone push notifications, open this site in <span className="font-medium text-white">Safari</span>.
+            </p>
+          </div>
+        </div>
+      ) : null}
       {iosInstallHintEligible && !showIosInstallHint ? (
         <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-4">
           <button
