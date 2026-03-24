@@ -77,6 +77,7 @@ function deriveLatestRequestLifecycle(events: NormalizedEvent[], snapshot: Opera
   const requestedAt = parseEventSeconds(payload.requestedAt);
   const executableAt = parseEventSeconds(payload.executableAt);
   const expiresAt = parseEventSeconds(payload.expiresAt);
+  const cancelEndsAt = snapshot ? requestedAt + snapshot.cancelWindow : requestedAt;
 
   let outcome: RequestLifecycleView['outcome'] = 'active';
   let settledAt: number | null = null;
@@ -88,6 +89,14 @@ function deriveLatestRequestLifecycle(events: NormalizedEvent[], snapshot: Opera
     else { outcome = 'expired'; settledAt = parseEventSeconds(tp.expiredAt); }
   } else if (snapshot?.pendingWithdrawal.exists && snapshot.pendingWithdrawal.purposeHash.toLowerCase() === purposeHash.toLowerCase()) {
     outcome = 'active';
+  } else if (snapshot && !snapshot.pendingWithdrawal.exists) {
+    if (expiresAt <= nowSeconds) {
+      outcome = 'expired'; settledAt = expiresAt;
+    } else if (nowSeconds < cancelEndsAt) {
+      outcome = 'canceled'; settledAt = nowSeconds;
+    } else {
+      outcome = 'executed'; settledAt = nowSeconds;
+    }
   } else if (expiresAt <= nowSeconds) {
     outcome = 'expired'; settledAt = expiresAt;
   }
@@ -224,11 +233,25 @@ export function TransactionsTab(props: {
   }, [props.vaultAddress]);
 
   useEffect(() => {
-    function handleFocus() { restoreScrollPosition(); }
-    function handleVisibilityChange() { if (document.visibilityState === 'visible') restoreScrollPosition(); }
+    function handleReturnToApp() {
+      restoreScrollPosition();
+      void refresh({ background: true });
+    }
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        handleReturnToApp();
+      }
+    }
+    function handlePageShow() { handleReturnToApp(); }
+    function handleFocus() { handleReturnToApp(); }
+    window.addEventListener('pageshow', handlePageShow);
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => { window.removeEventListener('focus', handleFocus); document.removeEventListener('visibilitychange', handleVisibilityChange); };
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const selectedAvailable = useMemo(() => {
@@ -274,10 +297,7 @@ export function TransactionsTab(props: {
     }
 
     setMessage('Switching wallet to BNB Smart Chain Testnet...');
-    const switchPromise = switchToOperatorChain();
-    startWalletApprovalFlow(connection);
-    const updated = await switchPromise;
-    clearWalletApprovalFlow();
+    const updated = await switchToOperatorChain();
     return updated;
   }
 
