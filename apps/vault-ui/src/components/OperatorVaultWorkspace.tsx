@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { DeploymentProof, NormalizedEvent, VaultMetadata, VaultStatus } from '@brigid/beacon-shared-types';
+import { useSearchParams } from 'react-router-dom';
 import { fetchVaultBundle } from '../lib/api';
 import type { WalletSession } from '../lib/operatorVault';
+import type { WalletConnectionKind } from '../lib/operatorVault';
 import { VaultStatusTab } from './VaultStatusTab';
 import { VaultActivityTab } from './VaultActivityTab';
 import { TransactionsTab } from './TransactionsTab';
@@ -31,6 +33,13 @@ function readStoredActiveTab(address: string): VaultTab {
     // Ignore storage failures.
   }
   return 'status';
+}
+
+function parseVaultTab(value: string | null): VaultTab | null {
+  if (value === 'status' || value === 'withdrawals' || value === 'activity' || value === 'notifications') {
+    return value;
+  }
+  return null;
 }
 
 const TABS = [
@@ -63,9 +72,12 @@ const TABS = [
 export function OperatorVaultWorkspace(props: {
   vaultAddress: string;
   walletSession: WalletSession;
-  ensureWallet: () => Promise<WalletSession>;
+  ensureWallet: (kind?: WalletConnectionKind) => Promise<WalletSession>;
 }) {
   const { vaultAddress, walletSession, ensureWallet } = props;
+  const [searchParams] = useSearchParams();
+  const requestedTab = parseVaultTab(searchParams.get('tab'));
+  const autoSelectWebPush = searchParams.get('setupPush') === '1';
 
   const [bundle, setBundle] = useState<VaultBundle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,8 +85,8 @@ export function OperatorVaultWorkspace(props: {
   const [activeTab, setActiveTab] = useState<VaultTab>(() => readStoredActiveTab(vaultAddress));
 
   useEffect(() => {
-    setActiveTab(readStoredActiveTab(vaultAddress));
-  }, [vaultAddress]);
+    setActiveTab(requestedTab ?? readStoredActiveTab(vaultAddress));
+  }, [requestedTab, vaultAddress]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !vaultAddress) return;
@@ -168,7 +180,12 @@ export function OperatorVaultWorkspace(props: {
       ) : activeTab === 'activity' ? (
         <VaultActivityTab events={events} purposeTexts={purposeTexts} chainId={metadata.chainId} />
       ) : (
-        <OwnerSettings vaultAddress={metadata.address} indexedOwnerAddress={metadata.owner} walletSession={walletSession} />
+        <OwnerSettings
+          vaultAddress={metadata.address}
+          indexedOwnerAddress={metadata.owner}
+          walletSession={walletSession}
+          autoSelectWebPush={autoSelectWebPush}
+        />
       )}
     </div>
   );

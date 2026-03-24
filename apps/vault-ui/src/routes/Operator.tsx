@@ -6,6 +6,35 @@ import { CopyableAddress } from '../components/CopyableAddress';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { NETWORK_NAMES, fetchTokenSymbol } from '../lib/operatorVault';
 
+const FIRST_PWA_OWNER_PUSH_SETUP_KEY = 'beacon_pwa_owner_push_setup_seen';
+
+function shouldPrimeOwnerPushSetup() {
+  if (typeof window === 'undefined') return false;
+
+  const standalone =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    (typeof navigator !== 'undefined' &&
+      'standalone' in navigator &&
+      Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
+  const isTouchDevice =
+    typeof navigator !== 'undefined' &&
+    ((navigator.maxTouchPoints ?? 0) > 0 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent ?? ''));
+
+  if (!standalone || !isTouchDevice) {
+    return false;
+  }
+
+  try {
+    if (window.localStorage.getItem(FIRST_PWA_OWNER_PUSH_SETUP_KEY) === '1') {
+      return false;
+    }
+    window.localStorage.setItem(FIRST_PWA_OWNER_PUSH_SETUP_KEY, '1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default function Operator() {
   return (
     <ErrorBoundary label="Operator panel error">
@@ -182,7 +211,12 @@ function OperatorContent() {
                 <button
                   key={entry.metadata.address}
                   type="button"
-                  onClick={() => navigate(`/operator/${entry.metadata.address}`)}
+                  onClick={() => {
+                    const nextPath = shouldPrimeOwnerPushSetup()
+                      ? `/operator/${entry.metadata.address}?tab=notifications&setupPush=1`
+                      : `/operator/${entry.metadata.address}`;
+                    navigate(nextPath);
+                  }}
                   className={`group flex cursor-pointer items-center justify-between rounded-2xl border px-5 py-4 text-left transition-all duration-150 ${
                     isActive
                       ? 'border-sky-300/50 bg-sky-300/10 shadow-[0_0_0_1px_rgba(125,211,252,0.15)]'

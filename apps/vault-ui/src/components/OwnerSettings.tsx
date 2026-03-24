@@ -87,8 +87,9 @@ export function OwnerSettings(props: {
   vaultAddress: string;
   indexedOwnerAddress: string;
   walletSession: WalletSession;
+  autoSelectWebPush?: boolean;
 }) {
-  const { vaultAddress, indexedOwnerAddress, walletSession } = props;
+  const { vaultAddress, indexedOwnerAddress, walletSession, autoSelectWebPush = false } = props;
   const ownerAddress = walletSession.address;
 
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -185,6 +186,15 @@ export function OwnerSettings(props: {
     if (!existingSubscription) return;
     setSelectedEventKinds(existingSubscription.eventKinds);
   }, [selectedDestinationId, subscriptions]);
+
+  useEffect(() => {
+    if (!autoSelectWebPush) return;
+    setDestinationKind('web_push');
+    setDestinationLabel('This browser');
+    setTelegramConnectLink(null);
+    setAwaitingTelegramConnection(false);
+    setSelectedDestinationId(destinations.find((destination) => destination.kind === 'web_push')?.id ?? '');
+  }, [autoSelectWebPush, destinations]);
 
   async function handleClaim() {
     setBusy(true); setError(null); setMessage(null);

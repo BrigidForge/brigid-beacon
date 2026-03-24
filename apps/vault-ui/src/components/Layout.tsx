@@ -8,6 +8,26 @@ type LayoutProps = {
   banners?: React.ReactNode;
 };
 
+function MoreMenuButtonPreview() {
+  return (
+    <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-2xl border border-white/15 bg-slate-950/70 px-3 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
+      <span className="font-semibold tracking-[0.3em] text-white">...</span>
+    </span>
+  );
+}
+
+function ShareButtonPreview() {
+  return (
+    <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-2xl border border-white/15 bg-slate-950/70 px-3 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
+      <svg viewBox="0 0 24 24" className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 16V5" />
+        <path d="m8.5 8.5 3.5-3.5 3.5 3.5" />
+        <path d="M6 14.5v3A1.5 1.5 0 0 0 7.5 19h9a1.5 1.5 0 0 0 1.5-1.5v-3" />
+      </svg>
+    </span>
+  );
+}
+
 export default function Layout({ children, headerRight, banners }: LayoutProps) {
   const [showIosInstallHint, setShowIosInstallHint] = useState(false);
 
@@ -63,8 +83,21 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-medium text-white">Install Brigid Beacon on your iPhone</p>
-                <p className="mt-2 leading-6 text-sky-50/90">
-                  In Safari, tap <span className="font-medium text-white">Share</span>, then <span className="font-medium text-white">Add to Home Screen</span>, then <span className="font-medium text-white">Add</span>. Open Beacon from your home screen to enable iPhone push notifications.
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sky-50/90">
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2">
+                    <MoreMenuButtonPreview />
+                    <span className="leading-5">1. Tap the <span className="font-medium text-white">...</span> menu in Safari</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2">
+                    <ShareButtonPreview />
+                    <span className="leading-5">2. Tap <span className="font-medium text-white">Share</span></span>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 leading-5">
+                    3. Choose <span className="font-medium text-white">Add to Home Screen</span>, then tap <span className="font-medium text-white">Add</span>
+                  </div>
+                </div>
+                <p className="mt-3 leading-6 text-sky-50/90">
+                  Open Beacon from your home screen to enable iPhone push notifications.
                 </p>
               </div>
               <button
