@@ -2,6 +2,63 @@
 
 ---
 
+## 2026-03-24 — Beacon `V1.1.0` Stable PWA Release
+
+### Summary
+
+Locked Beacon as `V1.1.0` and promoted it from a browser-only app to a
+functioning installable PWA. This release keeps the unified `apps/vault-ui`
+surface and adds a complete mobile/browser push flow, iPhone install guidance,
+and a cleaner first-run onboarding path for device notifications.
+
+### Major Product Changes
+
+- Added a manifest/service-worker-backed PWA shell on the existing
+  `vault.brigidforge.com` deployment
+- Added browser push notifications and wired them into the public vault viewer
+- Implemented iPhone-specific install guidance with:
+  - Safari-only install instructions
+  - non-Safari mobile warning under the logo
+  - collapsible install helper that can be reopened later
+- Added first-run PWA onboarding that:
+  - routes installed mobile users into the public vault viewer flow
+  - asks for a vault address first
+  - lands directly on Browser Push Alerts
+  - visually emphasizes the enable action
+- Consolidated device-level app notification setup through the public vault
+  viewer so users have one notification setup path per vault/device
+
+### Notification / UX Cleanup
+
+- Public email subscription flow stabilized:
+  - resend confirmation
+  - secure manage-link flow
+  - unsubscribe / resubscribe cleanup
+  - spam-folder guidance
+- Withdrawal request notifications now dispatch correctly at the start of the
+  delay phase after the cancellation window closes
+- Public email subscriptions and owner notification defaults were aligned with
+  actionable withdrawal events
+- Owner panel browser-push setup now redirects users to the public vault viewer
+  instead of maintaining a second competing browser-push flow
+
+### Mobile / iPhone Improvements
+
+- Added delayed wallet handoff with inline countdown for mobile signing
+- Fixed repeated/stray wallet handoff behavior during withdrawal flow
+- Added focus/pageshow refresh behavior so iPhone wallet returns update the UI
+  after approval
+- Timeline now returns to the idle state when no withdrawal request is active
+- iPhone home-screen install metadata updated to use `Brigid Beacon`
+
+### Release Notes
+
+- Stable release: `V1.1.0`
+- Previous stable release: `V1.0.0`
+- Commit: `568d27a` (`Release Beacon V1.1.0 stable PWA`)
+
+---
+
 ## 2026-03-22 — Operator Panel UX: Vesting/Surplus Separation + Label Cleanup
 
 ### Summary
@@ -186,4 +243,3 @@ deploy script. A follow-up task is needed to:
 
 Rationale:
 Simplify development workflow during pre-launch phase to improve speed, reduce errors, and maintain momentum.
-
