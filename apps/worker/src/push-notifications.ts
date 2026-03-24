@@ -25,7 +25,19 @@ function parsePushSubscription(value: unknown): PushSubscriptionJson | null {
   }
 
   const keys = isObject(value.keys) ? value.keys : null;
-  if (!keys || typeof keys.auth !== 'string' || typeof keys.p256dh !== 'string') {
+  const auth =
+    keys && typeof keys.auth === 'string'
+      ? keys.auth
+      : typeof value.auth === 'string'
+        ? value.auth
+        : null;
+  const p256dh =
+    keys && typeof keys.p256dh === 'string'
+      ? keys.p256dh
+      : typeof value.p256dh === 'string'
+        ? value.p256dh
+        : null;
+  if (!auth || !p256dh) {
     return null;
   }
 
@@ -33,8 +45,8 @@ function parsePushSubscription(value: unknown): PushSubscriptionJson | null {
     endpoint: value.endpoint,
     expirationTime: typeof value.expirationTime === 'number' ? value.expirationTime : null,
     keys: {
-      auth: keys.auth,
-      p256dh: keys.p256dh,
+      auth,
+      p256dh,
     },
   };
 }
