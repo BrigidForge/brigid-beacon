@@ -1,7 +1,43 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const PWA_PUBLIC_ONBOARDING_SEEN_KEY = 'beacon_pwa_public_push_onboarding_seen';
+
+function shouldStartPwaPublicOnboarding() {
+  if (typeof window === 'undefined') return false;
+
+  const standalone =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    (typeof navigator !== 'undefined' &&
+      'standalone' in navigator &&
+      Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
+  const isTouchDevice =
+    typeof navigator !== 'undefined' &&
+    ((navigator.maxTouchPoints ?? 0) > 0 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent ?? ''));
+
+  if (!standalone || !isTouchDevice) {
+    return false;
+  }
+
+  try {
+    if (window.localStorage.getItem(PWA_PUBLIC_ONBOARDING_SEEN_KEY) === '1') {
+      return false;
+    }
+    window.localStorage.setItem(PWA_PUBLIC_ONBOARDING_SEEN_KEY, '1');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export default function Home() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (shouldStartPwaPublicOnboarding()) {
+      navigate('/view?setupPush=1', { replace: true });
+    }
+  }, [navigate]);
 
   return (
     <div className="flex flex-col items-center gap-12 py-10">

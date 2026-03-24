@@ -52,7 +52,13 @@ function toSubscriptionConfig(subscription: PushSubscription) {
   };
 }
 
-export function PublicPushAlertsCard({ vaultAddress }: { vaultAddress: string }) {
+export function PublicPushAlertsCard({
+  vaultAddress,
+  highlightEnableAction = false,
+}: {
+  vaultAddress: string;
+  highlightEnableAction?: boolean;
+}) {
   const [selected, setSelected] = useState<string[]>(ALL_EVENT_KINDS);
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
@@ -180,6 +186,7 @@ export function PublicPushAlertsCard({ vaultAddress }: { vaultAddress: string })
           : currentEndpoint
             ? 'Ready to subscribe'
             : 'Not subscribed';
+  const shouldPulseEnableButton = highlightEnableAction && !existingStatus?.subscribed;
 
   return (
     <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
@@ -213,6 +220,12 @@ export function PublicPushAlertsCard({ vaultAddress }: { vaultAddress: string })
         ) : null}
       </div>
 
+      {shouldPulseEnableButton ? (
+        <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-50">
+          This is the fastest way to turn on Brigid Beacon app notifications for this device. Tap <span className="font-medium text-white">Enable browser alerts</span> below.
+        </div>
+      ) : null}
+
       <div className="mt-5">
         <p className="mb-3 text-sm text-slate-300">Notify this device about</p>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -242,7 +255,9 @@ export function PublicPushAlertsCard({ vaultAddress }: { vaultAddress: string })
           type="button"
           onClick={() => void handleSubscribe()}
           disabled={unsupported || !config?.configured || selected.length === 0 || status === 'loading'}
-          className="rounded-2xl bg-amber-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`rounded-2xl bg-amber-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50 ${
+            shouldPulseEnableButton ? 'animate-pulse shadow-[0_0_0_1px_rgba(252,211,77,0.3),0_0_28px_rgba(252,211,77,0.2)]' : ''
+          }`}
         >
           {status === 'loading'
             ? 'Working...'

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import brigidLogoWhite from '../../media/brigid-logo-white.png';
+import beaconAppIcon from '../../media/icon-180.png';
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -36,6 +37,14 @@ function ViewMoreButtonPreview() {
           <path d="m7 10 5 5 5-5" />
         </svg>
       </span>
+    </span>
+  );
+}
+
+function AppIconPreview() {
+  return (
+    <span className="inline-flex h-10 min-w-10 items-center justify-center overflow-hidden rounded-[1rem] border border-white/15 bg-slate-950/70 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
+      <img src={beaconAppIcon} alt="Brigid Beacon app icon" className="h-full w-full object-cover" />
     </span>
   );
 }
@@ -132,6 +141,10 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 leading-5">
                     4. Choose <span className="font-medium text-white">Add to Home Screen</span>, then tap <span className="font-medium text-white">Add</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2">
+                    <AppIconPreview />
+                    <span className="leading-5">5. Open the <span className="font-medium text-white">Brigid Beacon</span> app from your home screen</span>
                   </div>
                 </div>
                 <p className="mt-3 leading-6 text-sky-50/90">

@@ -1,15 +1,17 @@
 import { type FormEvent, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function ViewerLanding() {
   const [address, setAddress] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const setupPush = searchParams.get('setupPush') === '1';
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const next = address.trim();
     if (!next) return;
-    void navigate(`/view/${next}`);
+    void navigate(setupPush ? `/view/${next}?tab=notifications&setupPush=1` : `/view/${next}`);
   }
 
   return (
@@ -23,7 +25,9 @@ export default function ViewerLanding() {
           <p className="text-sm uppercase tracking-[0.35em] text-amber-300/70">Public Vault Viewer</p>
           <h1 className="text-3xl font-semibold text-white">Enter a vault address</h1>
           <p className="text-slate-400">
-            View vault status, vesting schedule, activity history, and set up email notifications.
+            {setupPush
+              ? 'Enter your vault, then Beacon will take you straight to browser alert setup for this device.'
+              : 'View vault status, vesting schedule, activity history, and set up email notifications.'}
           </p>
         </div>
 

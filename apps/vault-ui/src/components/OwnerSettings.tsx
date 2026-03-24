@@ -9,7 +9,6 @@ import {
   fetchDeliveries,
   fetchClaimStatus,
   fetchDestinations,
-  fetchPublicPushConfig,
   fetchOwnerSession,
   fetchSubscriptions,
   getStoredOwnerSession,
@@ -20,10 +19,10 @@ import {
   type NotificationDestinationRecord,
   type NotificationSubscriptionRecord,
 } from '../lib/api';
+import { Link } from 'react-router-dom';
 import { formatIso, formatStateLabel } from '../lib/format';
 import { clearWalletOpenTimer, getWalletApprovalAssistUrl, openWalletForSigning } from '../lib/operatorVault';
 import type { WalletSession } from '../lib/operatorVault';
-import { browserPushSupported, createBrowserPushSubscription } from '../lib/push';
 
 const EVENT_OPTIONS = [
   'vault_funded',
@@ -121,6 +120,7 @@ export function OwnerSettings(props: {
   const duplicateSubscription = subscriptions.find((s) => s.destinationId === selectedDestinationId) ?? null;
   const destinationConfigValid =
     destinationKind === 'telegram' || destinationKind === 'web_push' ? true : destinationUrl.trim().length > 0;
+  const publicPushSetupHref = `/view/${vaultAddress}?tab=notifications&setupPush=1`;
 
   async function refreshOwnerData(nextSessionToken = sessionToken) {
     if (!nextSessionToken) { setClaimStatus({ claimed: false, claimedAt: null }); setDestinations([]); setSubscriptions([]); setDeliveries([]); return; }
@@ -225,49 +225,7 @@ export function OwnerSettings(props: {
         return;
       }
       if (destinationKind === 'web_push') {
-        if (!browserPushSupported()) {
-          throw new Error('Browser push notifications are not supported on this device.');
-        }
-        const pushConfig = await fetchPublicPushConfig();
-        if (!pushConfig.configured || !pushConfig.vapidPublicKey) {
-          throw new Error('Browser push is not configured on this deployment yet.');
-        }
-
-        const browserSubscription = await createBrowserPushSubscription(pushConfig.vapidPublicKey);
-        const json = browserSubscription.toJSON();
-        const auth = json.keys?.auth;
-        const p256dh = json.keys?.p256dh;
-        if (!json.endpoint || !auth || !p256dh) {
-          throw new Error('Browser push subscription is missing endpoint or keys.');
-        }
-
-        const existingDestination = destinations.find((destination) =>
-          destination.kind === 'web_push' &&
-          typeof destination.config.endpoint === 'string' &&
-          destination.config.endpoint === json.endpoint,
-        );
-        if (existingDestination) {
-          setSelectedDestinationId(existingDestination.id);
-          setMessage(`Browser push destination ready. "${existingDestination.label}" is already available for subscriptions.`);
-          return;
-        }
-
-        const destination = await createDestination({
-          sessionToken: sessionToken!,
-          ownerAddress,
-          kind: 'web_push',
-          label: destinationLabel.trim() || 'This browser',
-          config: {
-            endpoint: json.endpoint,
-            auth,
-            p256dh,
-            expirationTime: json.expirationTime ?? null,
-            userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-          },
-        });
-        setDestinations([...destinations, destination]);
-        setSelectedDestinationId(destination.id);
-        setMessage(`${destination.label} is ready for browser push subscriptions.`);
+        setMessage('App notifications are managed from the public vault viewer on this device.');
         return;
       }
       const destination = await createDestination({ sessionToken: sessionToken!, ownerAddress, kind: destinationKind, label: destinationLabel, config: { url: destinationUrl } });
@@ -404,8 +362,12 @@ export function OwnerSettings(props: {
             </label>
             <label className="space-y-2">
               <span className="text-sm text-slate-300">Label</span>
-              <input value={destinationLabel} onChange={(e) => setDestinationLabel(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none" />
+              <input
+                value={destinationLabel}
+                onChange={(e) => setDestinationLabel(e.target.value)}
+                disabled={destinationKind === 'web_push'}
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              />
             </label>
             {destinationKind === 'telegram' ? (
               <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-4 text-sm text-emerald-50">
@@ -435,10 +397,16 @@ export function OwnerSettings(props: {
               </div>
             ) : destinationKind === 'web_push' ? (
               <div className="rounded-2xl border border-sky-300/20 bg-sky-300/10 px-4 py-4 text-sm text-sky-50">
-                <p className="font-medium text-white">Browser push setup</p>
+                <p className="font-medium text-white">App notifications are managed from the public vault viewer</p>
                 <p className="mt-2 leading-6 text-sky-50/90">
-                  Beacon will ask this browser for notification permission and save it as a private owner destination. On iPhone and iPad, install Brigid Beacon to the home screen first.
+                  Use the public vault page on this device to enable Brigid Beacon app notifications for this vault. That keeps browser push alerts in one place for both public and operator use.
                 </p>
+                <Link
+                  to={publicPushSetupHref}
+                  className="mt-4 inline-flex rounded-2xl border border-sky-300/30 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-50 transition hover:border-sky-300/50 hover:bg-sky-300/15"
+                >
+                  Open public notification setup
+                </Link>
               </div>
             ) : (
               <label className="space-y-2">
@@ -447,11 +415,13 @@ export function OwnerSettings(props: {
                   className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none" />
               </label>
             )}
-            <button type="button" disabled={busy || !canManage || destinationLabel.trim().length === 0 || !destinationConfigValid}
-              onClick={() => void handleCreateDestination()}
-              className="inline-flex rounded-2xl border border-sky-300/30 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-50 disabled:cursor-not-allowed disabled:opacity-50">
-              {destinationKind === 'telegram' ? 'Connect Telegram' : destinationKind === 'web_push' ? 'Enable browser push' : 'Save destination'}
-            </button>
+            {destinationKind !== 'web_push' ? (
+              <button type="button" disabled={busy || !canManage || destinationLabel.trim().length === 0 || !destinationConfigValid}
+                onClick={() => void handleCreateDestination()}
+                className="inline-flex rounded-2xl border border-sky-300/30 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-50 disabled:cursor-not-allowed disabled:opacity-50">
+                {destinationKind === 'telegram' ? 'Connect Telegram' : 'Save destination'}
+              </button>
+            ) : null}
             {showTelegramFeedback ? (
               <div className="space-y-3">
                 {awaitingTelegramConnection ? (

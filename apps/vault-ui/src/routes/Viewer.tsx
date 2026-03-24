@@ -49,16 +49,18 @@ export default function Viewer() {
     title: string;
     message: string;
   } | null>(null);
+  const requestedTab = searchParams.get('tab');
+  const highlightPushSetup = searchParams.get('setupPush') === '1';
 
   useEffect(() => {
-    if (
-      searchParams.has('confirmEmailToken') ||
-      searchParams.has('unsubscribeEmailToken') ||
-      searchParams.has('manageEmailToken')
-    ) {
+    if (requestedTab === 'notifications') {
+      setTab('notifications');
+      return;
+    }
+    if (searchParams.has('confirmEmailToken') || searchParams.has('unsubscribeEmailToken') || searchParams.has('manageEmailToken')) {
       setTab('notifications');
     }
-  }, [searchParams]);
+  }, [requestedTab, searchParams]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -230,7 +232,7 @@ export default function Viewer() {
       {/* Tab content */}
       {tab === 'status' && <StatusTab metadata={metadata} status={status} purposeTexts={purposeTexts} nowSeconds={nowSeconds} />}
       {tab === 'activity' && <ActivityTab events={events} purposeTexts={purposeTexts} />}
-      {tab === 'notifications' && <NotificationsTab vaultAddress={metadata.address} />}
+      {tab === 'notifications' && <NotificationsTab vaultAddress={metadata.address} highlightPushSetup={highlightPushSetup} />}
     </div>
   );
 }
@@ -395,7 +397,7 @@ const ALL_EVENT_KINDS = [
   'request_expired',
 ];
 
-function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
+function NotificationsTab({ vaultAddress, highlightPushSetup }: { vaultAddress: string; highlightPushSetup: boolean }) {
   const [email, setEmail] = useState('');
   const [selected, setSelected] = useState<string[]>(ALL_EVENT_KINDS);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -705,6 +707,7 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
+      <PublicPushAlertsCard vaultAddress={vaultAddress} highlightEnableAction={highlightPushSetup} />
       <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
         <p className="text-xs uppercase tracking-widest text-slate-400">Email Alerts</p>
         <p className="mt-2 text-sm text-slate-400">
@@ -837,7 +840,6 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
 
         </form>
       </div>
-      <PublicPushAlertsCard vaultAddress={vaultAddress} />
     </div>
   );
 }
