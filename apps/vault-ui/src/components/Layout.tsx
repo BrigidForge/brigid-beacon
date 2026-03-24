@@ -41,12 +41,13 @@ function ViewMoreButtonPreview() {
 }
 
 export default function Layout({ children, headerRight, banners }: LayoutProps) {
+  const [iosInstallHintEligible, setIosInstallHintEligible] = useState(false);
   const [showIosInstallHint, setShowIosInstallHint] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const dismissed = window.localStorage.getItem('beacon_ios_install_hint_dismissed') === '1';
+    const dismissed = window.localStorage.getItem('beacon_ios_install_hint_collapsed') === '1';
     const standalone =
       window.matchMedia?.('(display-mode: standalone)').matches ||
       (typeof navigator !== 'undefined' &&
@@ -58,14 +59,23 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const isSafari = /Safari/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(userAgent);
 
-    setShowIosInstallHint(isIos && isSafari && !standalone && !dismissed);
+    const eligible = isIos && isSafari && !standalone;
+    setIosInstallHintEligible(eligible);
+    setShowIosInstallHint(eligible && !dismissed);
   }, []);
 
   function dismissIosInstallHint() {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('beacon_ios_install_hint_dismissed', '1');
+      window.localStorage.setItem('beacon_ios_install_hint_collapsed', '1');
     }
     setShowIosInstallHint(false);
+  }
+
+  function expandIosInstallHint() {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('beacon_ios_install_hint_collapsed');
+    }
+    setShowIosInstallHint(true);
   }
 
   return (
@@ -89,6 +99,18 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
           </div>
         </div>
       </header>
+      {iosInstallHintEligible && !showIosInstallHint ? (
+        <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-4">
+          <button
+            type="button"
+            onClick={expandIosInstallHint}
+            className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/20 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-50 shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-sky-200/30 hover:bg-sky-300/15"
+          >
+            <span>Show iPhone install steps</span>
+            <span aria-hidden="true">↓</span>
+          </button>
+        </div>
+      ) : null}
       {showIosInstallHint ? (
         <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-4">
           <div className="rounded-[1.75rem] border border-sky-300/20 bg-sky-300/10 px-4 py-4 text-sm text-sky-50 shadow-[0_18px_50px_rgba(15,23,42,0.22)]">
