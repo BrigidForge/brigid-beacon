@@ -43,8 +43,21 @@ function ViewMoreButtonPreview() {
 
 function AppIconPreview() {
   return (
-    <span className="inline-flex h-10 min-w-10 items-center justify-center overflow-hidden rounded-[1rem] border border-white/15 bg-slate-950/70 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
-      <img src={beaconAppIcon} alt="Brigid Beacon app icon" className="h-full w-full object-cover" />
+    <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-[1rem] border border-white/15 bg-slate-950/70 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
+      <img src={beaconAppIcon} alt="Brigid Beacon app icon" className="h-full w-full rounded-[0.8rem] object-contain" />
+    </span>
+  );
+}
+
+function AddToHomeScreenPreview() {
+  return (
+    <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-2xl border border-white/15 bg-slate-950/70 px-3 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
+      <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-white/20">
+        <svg viewBox="0 0 24 24" className="h-4 w-4 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 7v10" />
+          <path d="M7 12h10" />
+        </svg>
+      </span>
     </span>
   );
 }
@@ -139,17 +152,15 @@ export default function Layout({ children, headerRight, banners }: LayoutProps) 
                     <ViewMoreButtonPreview />
                     <span className="leading-5">3. Tap the down arrow to <span className="font-medium text-white">View More</span></span>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 leading-5">
-                    4. Choose <span className="font-medium text-white">Add to Home Screen</span>, then tap <span className="font-medium text-white">Add</span>
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2">
+                    <AddToHomeScreenPreview />
+                    <span className="leading-5">4. Choose <span className="font-medium text-white">Add to Home Screen</span>, then tap <span className="font-medium text-white">Add</span></span>
                   </div>
                   <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2">
                     <AppIconPreview />
                     <span className="leading-5">5. Open the <span className="font-medium text-white">Brigid Beacon</span> app from your home screen</span>
                   </div>
                 </div>
-                <p className="mt-3 leading-6 text-sky-50/90">
-                  Open Beacon from your home screen to enable iPhone push notifications.
-                </p>
               </div>
               <button
                 type="button"
