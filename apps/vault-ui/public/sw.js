@@ -1,5 +1,13 @@
 const CACHE_NAME = 'brigid-beacon-v1';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/media/triquetra_transparent.png'];
+const APP_SHELL = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/media/icon-180.png',
+  '/media/icon-192.png',
+  '/media/icon-512.png',
+  '/media/icon-maskable-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -62,8 +70,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Brigid Beacon';
   const options = {
     body: payload.body || 'New Vault Activity',
-    icon: payload.icon || '/media/triquetra_transparent.png',
-    badge: payload.badge || '/media/triquetra_transparent.png',
+    icon: payload.icon || '/media/icon-192.png',
+    badge: payload.badge || '/media/icon-192.png',
     tag: payload.tag || 'brigid-beacon',
     data: payload.data || {},
   };

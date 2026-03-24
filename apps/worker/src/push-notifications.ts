@@ -55,8 +55,8 @@ function buildPayload(event: DispatcheableEvent, formatted: FormattedNotificatio
   return JSON.stringify({
     title: 'Brigid Beacon',
     body: formatted.shortSummary,
-    icon: '/media/triquetra_transparent.png',
-    badge: '/media/triquetra_transparent.png',
+    icon: '/media/icon-192.png',
+    badge: '/media/icon-192.png',
     tag: `${event.vaultAddress}:${event.kind}`,
     url: formatted.publicViewerLink ?? `/view/${event.vaultAddress}`,
     data: {
