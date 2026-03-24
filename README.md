@@ -6,9 +6,9 @@ Beacon is the application layer for BrigidVault on BSC testnet: indexing, vault 
 
 ## Stable Release
 
-- Current stable release: `V1.0.0`
-- Previous stable release: none
-- Release note: `V1.0.0` is the first explicitly versioned stable Beacon release. It locks in the unified `vault-ui` app, owner withdrawal lifecycle controls, public email subscriptions and management, Telegram notifications, and production deploy automation.
+- Current stable release: `V1.1.0`
+- Previous stable release: `V1.0.0`
+- Release note: `V1.1.0` promotes Beacon to a functioning installable PWA. It keeps the unified `vault-ui` app and adds browser push notifications, iPhone install guidance, public-first PWA onboarding, and a single device-notification setup path through the public vault viewer.
 
 ## Live Deployment
 
@@ -34,6 +34,8 @@ Beacon is the application layer for BrigidVault on BSC testnet: indexing, vault 
   - secure manage links
   - unsubscribe flow
   - actionable withdrawal request alerts after the cancellation window closes
+- Supports browser push notifications through the public vault viewer and installed PWA flow
+- Ships as a functioning installable PWA on `vault.brigidforge.com`
 - Deploys automatically on `git push origin main`
 
 ## Repository Layout
@@ -62,7 +64,7 @@ Important routes:
 - `/operator`
 - `/operator/:vault`
 
-Notable locked-in functionality in `V1.0.0`:
+Notable locked-in functionality in `V1.1.0`:
 
 - unified public and operator UI
 - owner wallet claim flow
@@ -72,6 +74,9 @@ Notable locked-in functionality in `V1.0.0`:
 - public email subscription confirmation, resend, manage, and unsubscribe flows
 - withdrawal request notifications dispatched at the start of the delay phase
 - branded email templates with non-reply disclaimer
+- installable PWA shell with manifest, service worker, and iPhone home-screen support
+- public browser push notifications with first-run PWA onboarding
+- consolidated device-level app notification setup through the public vault viewer
 
 ## Chain Facts
 
