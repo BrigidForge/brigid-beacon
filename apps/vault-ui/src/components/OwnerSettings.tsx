@@ -9,6 +9,7 @@ import {
   fetchDeliveries,
   fetchClaimStatus,
   fetchDestinations,
+  fetchPublicPushConfig,
   fetchOwnerSession,
   fetchSubscriptions,
   getStoredOwnerSession,
@@ -22,6 +23,7 @@ import {
 import { formatIso, formatStateLabel } from '../lib/format';
 import { clearWalletOpenTimer, getWalletApprovalAssistUrl, openWalletForSigning } from '../lib/operatorVault';
 import type { WalletSession } from '../lib/operatorVault';
+import { browserPushSupported, createBrowserPushSubscription } from '../lib/push';
 
 const EVENT_OPTIONS = [
   'vault_funded',
@@ -102,7 +104,7 @@ export function OwnerSettings(props: {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [destinationKind, setDestinationKind] = useState<'webhook' | 'discord_webhook' | 'telegram'>('webhook');
+  const [destinationKind, setDestinationKind] = useState<'webhook' | 'discord_webhook' | 'telegram' | 'web_push'>('webhook');
   const [destinationLabel, setDestinationLabel] = useState('Ops webhook');
   const [destinationUrl, setDestinationUrl] = useState('https://example.com/hook');
   const [selectedDestinationId, setSelectedDestinationId] = useState('');
@@ -116,7 +118,8 @@ export function OwnerSettings(props: {
   const canManage = claimStatus?.claimed === true && walletMatchesIndexedOwner && hasSession;
   const selectedDestination = destinations.find((d) => d.id === selectedDestinationId) ?? null;
   const duplicateSubscription = subscriptions.find((s) => s.destinationId === selectedDestinationId) ?? null;
-  const destinationConfigValid = destinationKind === 'telegram' ? true : destinationUrl.trim().length > 0;
+  const destinationConfigValid =
+    destinationKind === 'telegram' || destinationKind === 'web_push' ? true : destinationUrl.trim().length > 0;
 
   async function refreshOwnerData(nextSessionToken = sessionToken) {
     if (!nextSessionToken) { setClaimStatus({ claimed: false, claimedAt: null }); setDestinations([]); setSubscriptions([]); setDeliveries([]); return; }
@@ -211,6 +214,52 @@ export function OwnerSettings(props: {
         setMessage('Tap "Open Telegram" below to start the bot and connect.');
         return;
       }
+      if (destinationKind === 'web_push') {
+        if (!browserPushSupported()) {
+          throw new Error('Browser push notifications are not supported on this device.');
+        }
+        const pushConfig = await fetchPublicPushConfig();
+        if (!pushConfig.configured || !pushConfig.vapidPublicKey) {
+          throw new Error('Browser push is not configured on this deployment yet.');
+        }
+
+        const browserSubscription = await createBrowserPushSubscription(pushConfig.vapidPublicKey);
+        const json = browserSubscription.toJSON();
+        const auth = json.keys?.auth;
+        const p256dh = json.keys?.p256dh;
+        if (!json.endpoint || !auth || !p256dh) {
+          throw new Error('Browser push subscription is missing endpoint or keys.');
+        }
+
+        const existingDestination = destinations.find((destination) =>
+          destination.kind === 'web_push' &&
+          typeof destination.config.endpoint === 'string' &&
+          destination.config.endpoint === json.endpoint,
+        );
+        if (existingDestination) {
+          setSelectedDestinationId(existingDestination.id);
+          setMessage(`Browser push destination ready. "${existingDestination.label}" is already available for subscriptions.`);
+          return;
+        }
+
+        const destination = await createDestination({
+          sessionToken: sessionToken!,
+          ownerAddress,
+          kind: 'web_push',
+          label: destinationLabel.trim() || 'This browser',
+          config: {
+            endpoint: json.endpoint,
+            auth,
+            p256dh,
+            expirationTime: json.expirationTime ?? null,
+            userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+          },
+        });
+        setDestinations([...destinations, destination]);
+        setSelectedDestinationId(destination.id);
+        setMessage(`${destination.label} is ready for browser push subscriptions.`);
+        return;
+      }
       const destination = await createDestination({ sessionToken: sessionToken!, ownerAddress, kind: destinationKind, label: destinationLabel, config: { url: destinationUrl } });
       setDestinations([...destinations, destination]);
       setSelectedDestinationId(destination.id);
@@ -276,7 +325,7 @@ export function OwnerSettings(props: {
           <p className="text-sm uppercase tracking-[0.32em] text-emerald-200/70">Beacon Notifications</p>
           <h2 className="mt-2 text-3xl font-semibold text-white">Alert destinations</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-            Configure webhooks, Discord, or Telegram alerts for this vault. Destinations are private to the verified vault owner.
+            Configure browser push, webhooks, Discord, or Telegram alerts for this vault. Destinations are private to the verified vault owner.
           </p>
         </div>
         {hasSession && (
@@ -332,11 +381,12 @@ export function OwnerSettings(props: {
               <span className="text-sm text-slate-300">Kind</span>
               <select value={destinationKind}
                 onChange={(e) => {
-                  const nextKind = e.target.value as 'webhook' | 'discord_webhook' | 'telegram';
+                  const nextKind = e.target.value as 'webhook' | 'discord_webhook' | 'telegram' | 'web_push';
                   setDestinationKind(nextKind); setTelegramConnectLink(null); setAwaitingTelegramConnection(false);
-                  setDestinationLabel(nextKind === 'telegram' ? 'Telegram alerts' : nextKind === 'discord_webhook' ? 'Discord alerts' : 'Ops webhook');
+                  setDestinationLabel(nextKind === 'telegram' ? 'Telegram alerts' : nextKind === 'discord_webhook' ? 'Discord alerts' : nextKind === 'web_push' ? 'This browser' : 'Ops webhook');
                 }}
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none">
+                <option value="web_push">This Browser (Push)</option>
                 <option value="webhook">Webhook</option>
                 <option value="discord_webhook">Discord Webhook</option>
                 <option value="telegram">Telegram</option>
@@ -373,6 +423,13 @@ export function OwnerSettings(props: {
                   </div>
                 ) : null}
               </div>
+            ) : destinationKind === 'web_push' ? (
+              <div className="rounded-2xl border border-sky-300/20 bg-sky-300/10 px-4 py-4 text-sm text-sky-50">
+                <p className="font-medium text-white">Browser push setup</p>
+                <p className="mt-2 leading-6 text-sky-50/90">
+                  Beacon will ask this browser for notification permission and save it as a private owner destination. On iPhone and iPad, install Brigid Beacon to the home screen first.
+                </p>
+              </div>
             ) : (
               <label className="space-y-2">
                 <span className="text-sm text-slate-300">{destinationKind === 'discord_webhook' ? 'Discord webhook URL' : 'Webhook URL'}</span>
@@ -383,7 +440,7 @@ export function OwnerSettings(props: {
             <button type="button" disabled={busy || !canManage || destinationLabel.trim().length === 0 || !destinationConfigValid}
               onClick={() => void handleCreateDestination()}
               className="inline-flex rounded-2xl border border-sky-300/30 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-50 disabled:cursor-not-allowed disabled:opacity-50">
-              {destinationKind === 'telegram' ? 'Connect Telegram' : 'Save destination'}
+              {destinationKind === 'telegram' ? 'Connect Telegram' : destinationKind === 'web_push' ? 'Enable browser push' : 'Save destination'}
             </button>
             {showTelegramFeedback ? (
               <div className="space-y-3">

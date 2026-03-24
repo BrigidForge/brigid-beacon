@@ -52,5 +52,8 @@ export function getApiConfig() {
     publicEmailLinkSecret: optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET') ?? null,
     brevoApiKey: optionalString('BREVO_API_KEY') ?? null,
     publicEmailFromAddress: optionalString('SES_FROM_EMAIL') ?? 'beacon-notifications@brigidforge.com',
+    webPushVapidSubject: optionalString('WEB_PUSH_VAPID_SUBJECT') ?? 'mailto:beacon-notifications@brigidforge.com',
+    webPushVapidPublicKey: optionalString('WEB_PUSH_VAPID_PUBLIC_KEY') ?? null,
+    webPushVapidPrivateKey: optionalString('WEB_PUSH_VAPID_PRIVATE_KEY') ?? null,
   } as const;
 }

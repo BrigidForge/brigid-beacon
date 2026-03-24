@@ -1,0 +1,25 @@
+{
+  "name": "Brigid Beacon",
+  "short_name": "Beacon",
+  "description": "Brigid Beacon for BrigidVault viewing, operator actions, and live vault notifications.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/media/triquetra_transparent.png",
+      "sizes": "422x362",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/media/triquetra_transparent.png",
+      "sizes": "422x362",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

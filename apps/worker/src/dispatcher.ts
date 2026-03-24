@@ -10,6 +10,7 @@ import { getProviders, formatNotification } from './notifications/index.js';
 import type { DispatcheableEvent } from './notifications/types.js';
 import { sendSubscriptionNotification } from './subscription-notifications.js';
 import { sendPublicEventEmail } from './public-email-notifications.js';
+import { isInvalidPushEndpointError, sendWebPushNotification } from './push-notifications.js';
 
 const DISPATCHABLE_KINDS = new Set([
   'vault_created',
@@ -62,9 +63,10 @@ type DispatcherDependencies = {
 function hasSubscriptionTargets(
   subscriptionCount: number,
   publicSubscriptionCount: number,
+  publicPushSubscriptionCount: number,
   providerCount: number,
 ): boolean {
-  if (subscriptionCount > 0 || publicSubscriptionCount > 0) {
+  if (subscriptionCount > 0 || publicSubscriptionCount > 0 || publicPushSubscriptionCount > 0) {
     return true;
   }
 
@@ -101,6 +103,14 @@ async function countActivePublicEmailSubscriptions(prismaClient: typeof prisma):
     });
     return 0;
   }
+}
+
+async function countActivePublicPushSubscriptions(prismaClient: typeof prisma): Promise<number> {
+  return prismaClient.publicPushSubscription.count({
+    where: {
+      disabledAt: null,
+    },
+  });
 }
 
 async function findMatchingPublicEmailSubscriptions(
@@ -148,6 +158,28 @@ async function findMatchingPublicEmailSubscriptions(
     });
     return [];
   }
+}
+
+async function findMatchingPublicPushSubscriptions(
+  prismaClient: typeof prisma,
+  vaultAddress: string,
+  kind: string,
+) {
+  if (!PUBLIC_EMAIL_KINDS.has(kind)) {
+    return [];
+  }
+
+  const subscriptions = await prismaClient.publicPushSubscription.findMany({
+    where: {
+      vaultAddress,
+      disabledAt: null,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return subscriptions.filter((subscription) =>
+    subscriptionMatchesKind(subscription.eventKindsJson, kind),
+  );
 }
 
 function toDispatcheable(row: DispatcherRow): DispatcheableEvent {
@@ -294,13 +326,14 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
   const providers = deps.providers ?? getProviders();
   const sendSubscription = deps.sendSubscription ?? sendSubscriptionNotification;
   if (providers.length === 0) {
-    const [activeSubscriptions, activePublicSubscriptions] = await Promise.all([
+    const [activeSubscriptions, activePublicSubscriptions, activePublicPushSubscriptions] = await Promise.all([
       prismaClient.notificationSubscription.count({
         where: { disabledAt: null, destination: { disabledAt: null } },
       }),
       countActivePublicEmailSubscriptions(prismaClient),
+      countActivePublicPushSubscriptions(prismaClient),
     ]);
-    if (activeSubscriptions === 0 && activePublicSubscriptions === 0) {
+    if (activeSubscriptions === 0 && activePublicSubscriptions === 0 && activePublicPushSubscriptions === 0) {
       return { processed: 0, sent: 0, errors: 0 };
     }
   }
@@ -359,6 +392,11 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
       subscriptionMatchesKind(subscription.eventKindsJson, row.kind),
     );
     const matchingPublicEmailSubscriptions = await findMatchingPublicEmailSubscriptions(
+      prismaClient,
+      row.vaultAddress,
+      row.kind,
+    );
+    const matchingPublicPushSubscriptions = await findMatchingPublicPushSubscriptions(
       prismaClient,
       row.vaultAddress,
       row.kind,
@@ -495,10 +533,86 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
       }
     }
 
+    if (matchingPublicPushSubscriptions.length > 0) {
+      for (const subscription of matchingPublicPushSubscriptions) {
+        const attemptAt = new Date();
+        const existing = await prismaClient.publicPushDelivery.upsert({
+          where: {
+            beaconEventId_publicSubscriptionId: {
+              beaconEventId: event.id,
+              publicSubscriptionId: subscription.id,
+            },
+          },
+          update: {},
+          create: {
+            beaconEventId: event.id,
+            publicSubscriptionId: subscription.id,
+            status: 'pending',
+          },
+        });
+
+        try {
+          const result = await sendWebPushNotification(subscription.subscriptionJson, event, formatted);
+          await prismaClient.publicPushDelivery.update({
+            where: {
+              beaconEventId_publicSubscriptionId: {
+                beaconEventId: event.id,
+                publicSubscriptionId: subscription.id,
+              },
+            },
+            data: {
+              status: 'sent',
+              providerMessageId: result.providerMessageId,
+              attemptCount: existing.attemptCount + 1,
+              lastAttemptAt: attemptAt,
+              deliveredAt: attemptAt,
+              errorMessage: null,
+            },
+          });
+          sent++;
+        } catch (err) {
+          const invalidEndpoint = isInvalidPushEndpointError(err);
+          if (!invalidEndpoint) {
+            allOk = false;
+          }
+          errors++;
+          await prismaClient.publicPushDelivery.update({
+            where: {
+              beaconEventId_publicSubscriptionId: {
+                beaconEventId: event.id,
+                publicSubscriptionId: subscription.id,
+              },
+            },
+            data: {
+              status: invalidEndpoint ? 'expired' : 'failed',
+              attemptCount: existing.attemptCount + 1,
+              lastAttemptAt: attemptAt,
+              errorMessage: err instanceof Error ? err.message : String(err),
+            },
+          });
+          if (invalidEndpoint) {
+            await prismaClient.publicPushSubscription.update({
+              where: { id: subscription.id },
+              data: { disabledAt: attemptAt },
+            });
+          }
+          logger.error('Dispatcher public push delivery error', {
+            eventId: event.id,
+            kind: event.kind,
+            publicSubscriptionId: subscription.id,
+            endpoint: subscription.endpoint,
+            invalidEndpoint,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
     if (
       config.globalNotificationFallbackEnabled &&
       matchingSubscriptions.length === 0 &&
-      matchingPublicEmailSubscriptions.length === 0
+      matchingPublicEmailSubscriptions.length === 0 &&
+      matchingPublicPushSubscriptions.length === 0
     ) {
       for (const provider of providers) {
         try {
@@ -523,6 +637,7 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
       hasSubscriptionTargets(
         matchingSubscriptions.length,
         matchingPublicEmailSubscriptions.length,
+        matchingPublicPushSubscriptions.length,
         providers.length,
       )
     ) {
@@ -533,6 +648,7 @@ export async function runDispatcherCycle(deps: DispatcherDependencies = {}): Pro
     } else if (
       matchingSubscriptions.length === 0 &&
       matchingPublicEmailSubscriptions.length === 0 &&
+      matchingPublicPushSubscriptions.length === 0 &&
       (!config.globalNotificationFallbackEnabled || providers.length === 0)
     ) {
       await prismaClient.beaconEvent.update({

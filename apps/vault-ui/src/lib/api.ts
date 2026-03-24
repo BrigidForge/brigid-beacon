@@ -110,7 +110,7 @@ export type OwnerSessionResponse = {
 export type NotificationDestinationRecord = {
   id: string;
   ownerAddress?: string;
-  kind: string;
+  kind: 'telegram' | 'discord_webhook' | 'webhook' | 'web_push';
   label: string;
   createdAt: string;
   disabledAt: string | null;
@@ -314,6 +314,41 @@ export type PublicEmailSubscriptionStatusResponse = {
   unsubscribeUrl?: string | null;
 };
 
+export type PublicPushConfigResponse = {
+  configured: boolean;
+  vapidPublicKey: string | null;
+  subject: string;
+};
+
+export type PublicPushSubscriptionResponse = {
+  status: 'subscribed';
+  vaultAddress: string;
+  endpoint: string;
+  eventKinds: string[];
+  disabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  message: string;
+};
+
+export type PublicPushSubscriptionStatusResponse = {
+  vaultAddress: string;
+  endpoint: string;
+  subscribed: boolean;
+  disabled: boolean;
+  eventKinds: string[];
+  createdAt: string | null;
+  updatedAt: string | null;
+  disabledAt: string | null;
+};
+
+export type PublicPushUnsubscribeResponse = {
+  unsubscribed: boolean;
+  vaultAddress: string;
+  endpoint: string;
+  unsubscribedAt: string;
+};
+
 export async function fetchVaultBundle(address: string): Promise<{
   metadata: VaultMetadata;
   status: VaultStatus;
@@ -412,7 +447,7 @@ export async function fetchDestinations(sessionToken: string): Promise<Destinati
 export async function createDestination(input: {
   sessionToken: string;
   ownerAddress: string;
-  kind: 'webhook' | 'discord_webhook' | 'telegram';
+  kind: 'webhook' | 'discord_webhook' | 'telegram' | 'web_push';
   label: string;
   config: Record<string, unknown>;
 }): Promise<NotificationDestinationRecord> {
@@ -558,4 +593,41 @@ export async function fetchManagedPublicEmailSubscriptionStatus(
 ): Promise<PublicEmailSubscriptionStatusResponse> {
   const params = new URLSearchParams({ token });
   return getJson<PublicEmailSubscriptionStatusResponse>(`/api/v1/public/email-subscriptions/manage?${params.toString()}`);
+}
+
+export async function fetchPublicPushConfig(): Promise<PublicPushConfigResponse> {
+  return getJson<PublicPushConfigResponse>('/api/v1/public/push/config');
+}
+
+export async function createPublicPushSubscription(input: {
+  vaultAddress: string;
+  eventKinds: string[];
+  subscription: unknown;
+  userAgent?: string;
+}): Promise<PublicPushSubscriptionResponse> {
+  return sendJson<PublicPushSubscriptionResponse>('/api/v1/public/push-subscriptions', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function fetchPublicPushSubscriptionStatus(
+  vaultAddress: string,
+  endpoint: string,
+): Promise<PublicPushSubscriptionStatusResponse> {
+  const params = new URLSearchParams({
+    vaultAddress,
+    endpoint,
+  });
+  return getJson<PublicPushSubscriptionStatusResponse>(`/api/v1/public/push-subscriptions/status?${params.toString()}`);
+}
+
+export async function unsubscribePublicPushSubscription(
+  vaultAddress: string,
+  endpoint: string,
+): Promise<PublicPushUnsubscribeResponse> {
+  return sendJson<PublicPushUnsubscribeResponse>('/api/v1/public/push-subscriptions/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify({ vaultAddress, endpoint }),
+  });
 }

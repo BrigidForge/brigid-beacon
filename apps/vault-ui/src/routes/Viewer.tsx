@@ -21,6 +21,7 @@ import {
   shortenHash,
 } from '../lib/format';
 import { CopyableAddress } from '../components/CopyableAddress';
+import { PublicPushAlertsCard } from '../components/PublicPushAlertsCard';
 import { TimelineComponent } from '../components/TimelineComponent';
 
 type Tab = 'status' | 'activity' | 'notifications';
@@ -703,13 +704,14 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
   }
 
   return (
-    <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
-      <p className="text-xs uppercase tracking-widest text-slate-400">Email Alerts</p>
-      <p className="mt-2 text-sm text-slate-400">
-        Receive email notifications when vault events occur. New subscriptions must be confirmed by email. Confirmed subscriptions are changed through a secure manage link sent to that email address.
-      </p>
+    <div className="grid gap-6 xl:grid-cols-2">
+      <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
+        <p className="text-xs uppercase tracking-widest text-slate-400">Email Alerts</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Receive email notifications when vault events occur. New subscriptions must be confirmed by email. Confirmed subscriptions are changed through a secure manage link sent to that email address.
+        </p>
 
-      <form onSubmit={(e) => { void handleSubmit(e); }} className="mt-6 flex flex-col gap-5">
+        <form onSubmit={(e) => { void handleSubmit(e); }} className="mt-6 flex flex-col gap-5">
         <div>
           <label htmlFor="notify-email" className="block text-sm text-slate-300">Email address</label>
           <input
@@ -833,7 +835,9 @@ function NotificationsTab({ vaultAddress }: { vaultAddress: string }) {
           </button>
         ) : null}
 
-      </form>
+        </form>
+      </div>
+      <PublicPushAlertsCard vaultAddress={vaultAddress} />
     </div>
   );
 }

@@ -38,6 +38,7 @@ model Vault {
   withdrawalPurposes WithdrawalPurpose[]
   subscriptions  NotificationSubscription[]
   publicEmailSubscriptions PublicEmailSubscription[]
+  publicPushSubscriptions PublicPushSubscription[]
 }
 
 
@@ -55,6 +56,7 @@ model BeaconEvent {
   vault       Vault                  @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
   deliveries  NotificationDelivery[]
   publicEmailDeliveries PublicEmailDelivery[]
+  publicPushDeliveries  PublicPushDelivery[]
 
   @@index([vaultAddress, blockNumber, logIndex])
   @@index([vaultAddress, kind])
@@ -293,6 +295,46 @@ model PublicEmailDelivery {
 
   beaconEvent  BeaconEvent             @relation(fields: [beaconEventId], references: [id], onDelete: Cascade)
   subscription PublicEmailSubscription @relation(fields: [publicSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([beaconEventId])
+  @@index([publicSubscriptionId])
+  @@index([status])
+  @@unique([beaconEventId, publicSubscriptionId])
+}
+
+model PublicPushSubscription {
+  id                  String   @id @default(cuid())
+  vaultAddress        String
+  endpoint            String
+  eventKindsJson      Json
+  subscriptionJson    Json
+  userAgent           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  disabledAt          DateTime?
+
+  vault      Vault               @relation(fields: [vaultAddress], references: [id], onDelete: Cascade)
+  deliveries PublicPushDelivery[]
+
+  @@unique([vaultAddress, endpoint])
+  @@index([vaultAddress])
+  @@index([disabledAt])
+}
+
+model PublicPushDelivery {
+  id                    String   @id @default(cuid())
+  beaconEventId         String
+  publicSubscriptionId  String
+  status                String
+  providerMessageId     String?
+  attemptCount          Int      @default(0)
+  lastAttemptAt         DateTime?
+  deliveredAt           DateTime?
+  errorMessage          String?
+  createdAt             DateTime @default(now())
+
+  beaconEvent  BeaconEvent            @relation(fields: [beaconEventId], references: [id], onDelete: Cascade)
+  subscription PublicPushSubscription @relation(fields: [publicSubscriptionId], references: [id], onDelete: Cascade)
 
   @@index([beaconEventId])
   @@index([publicSubscriptionId])

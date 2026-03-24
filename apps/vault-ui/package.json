@@ -10,9 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@walletconnect/ethereum-provider": "^2.23.8",
     "@brigid/beacon-shared-types": "*",
     "@brigid/beacon-theme": "*",
+    "@walletconnect/ethereum-provider": "^2.23.8",
     "ethers": "^6.13.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

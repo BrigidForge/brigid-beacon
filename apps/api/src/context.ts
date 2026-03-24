@@ -34,7 +34,7 @@ export const CLAIM_NONCE_TTL_MS = 10 * 60 * 1000;
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const TELEGRAM_LINK_TTL_MS = 15 * 60 * 1000;
 export const PUBLIC_EMAIL_CONFIRM_TTL_MS = 24 * 60 * 60 * 1000;
-export const DESTINATION_KINDS = new Set(['telegram', 'discord_webhook', 'webhook']);
+export const DESTINATION_KINDS = new Set(['telegram', 'discord_webhook', 'webhook', 'web_push']);
 
 export type ChainProvider = Pick<JsonRpcProvider, 'getBlockNumber' | 'getBlock'>;
 
@@ -136,7 +136,61 @@ export function sanitizeDestinationConfig(kind: string, configJson: unknown, con
     };
   }
 
+  if (kind === 'web_push') {
+    const endpoint = typeof parsed.endpoint === 'string' ? parsed.endpoint : '';
+    let endpointHost: string | null = null;
+    try {
+      endpointHost = endpoint ? new URL(endpoint).host : null;
+    } catch {
+      endpointHost = null;
+    }
+
+    return {
+      endpoint,
+      endpointHost,
+      hasKeys:
+        typeof parsed.auth === 'string' &&
+        parsed.auth.length > 0 &&
+        typeof parsed.p256dh === 'string' &&
+        parsed.p256dh.length > 0,
+      userAgent: typeof parsed.userAgent === 'string' ? parsed.userAgent : null,
+    };
+  }
+
   return {};
+}
+
+// Blocks SSRF by rejecting private/loopback IPs and non-HTTPS schemes.
+// discord_webhook is additionally restricted to discord.com.
+function isSafeWebhookUrl(rawUrl: string, kind: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:') return false;
+
+  const host = parsed.hostname.toLowerCase();
+  const privateRanges = [
+    /^localhost$/,
+    /^127\./,
+    /^0\.0\.0\.0$/,
+    /^::1$/,
+    /^10\.\d+\.\d+\.\d+$/,
+    /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
+    /^192\.168\.\d+\.\d+$/,
+    /^169\.254\.\d+\.\d+$/,  // link-local
+    /\.local$/,
+    /\.internal$/,
+  ];
+  if (privateRanges.some((re) => re.test(host))) return false;
+
+  if (kind === 'discord_webhook') {
+    if (host !== 'discord.com' && !host.endsWith('.discord.com')) return false;
+  }
+
+  return true;
 }
 
 export function parseDestinationConfig(kind: string, input: unknown, config: ApiConfig): Prisma.InputJsonValue | null {
@@ -147,6 +201,7 @@ export function parseDestinationConfig(kind: string, input: unknown, config: Api
   const parsed = input as Record<string, unknown>;
   if (kind === 'webhook' || kind === 'discord_webhook') {
     if (typeof parsed.url !== 'string' || parsed.url.length === 0) return null;
+    if (!isSafeWebhookUrl(parsed.url, kind)) return null;
     return { url: parsed.url } satisfies Prisma.InputJsonObject;
   }
 
@@ -159,6 +214,20 @@ export function parseDestinationConfig(kind: string, input: unknown, config: Api
       ...(typeof parsed.botToken === 'string' ? { botToken: parsed.botToken } : {}),
       ...(typeof parsed.chatTitle === 'string' ? { chatTitle: parsed.chatTitle } : {}),
       ...(typeof parsed.chatUsername === 'string' ? { chatUsername: parsed.chatUsername } : {}),
+    } satisfies Prisma.InputJsonObject;
+  }
+
+  if (kind === 'web_push') {
+    if (typeof parsed.endpoint !== 'string' || parsed.endpoint.length === 0) return null;
+    if (!/^https:\/\//i.test(parsed.endpoint)) return null;
+    if (typeof parsed.auth !== 'string' || parsed.auth.length === 0) return null;
+    if (typeof parsed.p256dh !== 'string' || parsed.p256dh.length === 0) return null;
+    return {
+      endpoint: parsed.endpoint,
+      auth: parsed.auth,
+      p256dh: parsed.p256dh,
+      ...(typeof parsed.expirationTime === 'number' ? { expirationTime: parsed.expirationTime } : {}),
+      ...(typeof parsed.userAgent === 'string' ? { userAgent: parsed.userAgent } : {}),
     } satisfies Prisma.InputJsonObject;
   }
 
@@ -175,6 +244,36 @@ export function parsePublicEventKinds(input: unknown): string[] | null {
   if (!Array.isArray(input) || input.length === 0) return null;
   const normalized = Array.from(new Set(input.filter((value): value is string => typeof value === 'string' && PUBLIC_EVENT_KINDS.has(value))));
   return normalized.length === input.length ? normalized : null;
+}
+
+export function parsePushSubscription(input: unknown): Prisma.InputJsonObject | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return null;
+  }
+
+  const parsed = input as Record<string, unknown>;
+  if (typeof parsed.endpoint !== 'string' || !/^https:\/\//i.test(parsed.endpoint)) {
+    return null;
+  }
+
+  const keys =
+    parsed.keys && typeof parsed.keys === 'object' && !Array.isArray(parsed.keys)
+      ? parsed.keys as Record<string, unknown>
+      : null;
+  const auth = typeof keys?.auth === 'string' ? keys.auth : null;
+  const p256dh = typeof keys?.p256dh === 'string' ? keys.p256dh : null;
+  if (!auth || !p256dh) {
+    return null;
+  }
+
+  return {
+    endpoint: parsed.endpoint,
+    expirationTime: typeof parsed.expirationTime === 'number' ? parsed.expirationTime : null,
+    keys: {
+      auth,
+      p256dh,
+    },
+  } satisfies Prisma.InputJsonObject;
 }
 
 export function buildPublicConfirmationUrls(config: ApiConfig, vaultAddress: string, params: { confirmToken: string; unsubscribeToken: string }) {
@@ -679,5 +778,6 @@ export function createApiContext(prisma: PrismaClient, config: ApiConfig, option
     issueNonce() {
       return randomBytes(16).toString('hex');
     },
+    parsePushSubscription,
   };
 }

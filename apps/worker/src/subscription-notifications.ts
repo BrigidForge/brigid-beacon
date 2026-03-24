@@ -1,5 +1,6 @@
 import type { DispatcheableEvent, FormattedNotification } from './notifications/types.js';
 import { config } from './config.js';
+import { sendWebPushNotification } from './push-notifications.js';
 
 type DestinationRow = {
   id: string;
@@ -190,6 +191,9 @@ export async function sendSubscriptionNotification(
   }
   if (destination.kind === 'webhook') {
     return sendWebhook(destination, event, formatted);
+  }
+  if (destination.kind === 'web_push') {
+    return sendWebPushNotification(destination.configJson, event, formatted);
   }
 
   throw new Error(`Unsupported destination kind: ${destination.kind}`);

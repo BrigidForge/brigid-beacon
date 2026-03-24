@@ -17,6 +17,8 @@ const tokenAddress = getAddress('0x00000000000000000000000000000000000000c3');
 const txBase = '0xtestapiseeded';
 
 async function seedDemoVault() {
+  await prisma.publicPushDelivery.deleteMany({ where: { subscription: { vaultAddress } } });
+  await prisma.publicPushSubscription.deleteMany({ where: { vaultAddress } });
   await prisma.publicEmailDelivery.deleteMany({ where: { subscription: { vaultAddress } } });
   await prisma.publicEmailToken.deleteMany({ where: { subscription: { vaultAddress } } });
   await prisma.publicEmailSubscription.deleteMany({ where: { vaultAddress } });
@@ -140,6 +142,8 @@ async function seedDemoVault() {
 }
 
 async function cleanupDemoVault() {
+  await prisma.publicPushDelivery.deleteMany({ where: { subscription: { vaultAddress } } });
+  await prisma.publicPushSubscription.deleteMany({ where: { vaultAddress } });
   await prisma.publicEmailDelivery.deleteMany({ where: { subscription: { vaultAddress } } });
   await prisma.publicEmailToken.deleteMany({ where: { subscription: { vaultAddress } } });
   await prisma.publicEmailSubscription.deleteMany({ where: { vaultAddress } });
@@ -281,6 +285,78 @@ test('Beacon API issues and verifies owner claim nonces for indexed vaults', asy
     orderBy: { createdAt: 'desc' },
   });
   assert.ok(session);
+});
+
+test('Beacon API creates, reads, and disables public browser push subscriptions', async (t) => {
+  await seedDemoVault();
+  t.after(async () => {
+    await cleanupDemoVault();
+  });
+
+  const app = buildApp(prisma, {
+    config: {
+      ...getApiConfig(),
+      webPushVapidPublicKey: 'test-public-vapid-key',
+      webPushVapidPrivateKey: 'test-private-vapid-key',
+    },
+  });
+  t.after(async () => {
+    await app.close();
+  });
+
+  const subscription = {
+    endpoint: 'https://fcm.googleapis.com/fcm/send/test-browser-endpoint',
+    expirationTime: null,
+    keys: {
+      auth: 'test-auth',
+      p256dh: 'test-p256dh',
+    },
+  };
+
+  const createResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/push-subscriptions',
+    payload: {
+      vaultAddress,
+      eventKinds: ['vault_funded', 'withdrawal_executed'],
+      subscription,
+      userAgent: 'Beacon test browser',
+    },
+  });
+  assert.equal(createResponse.statusCode, 200);
+  const created = createResponse.json();
+  assert.equal(created.status, 'subscribed');
+  assert.equal(created.endpoint, subscription.endpoint);
+  assert.deepEqual(created.eventKinds, ['vault_funded', 'withdrawal_executed']);
+
+  const statusResponse = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/push-subscriptions/status?vaultAddress=${encodeURIComponent(vaultAddress)}&endpoint=${encodeURIComponent(subscription.endpoint)}`,
+  });
+  assert.equal(statusResponse.statusCode, 200);
+  const status = statusResponse.json();
+  assert.equal(status.subscribed, true);
+  assert.deepEqual(status.eventKinds, ['vault_funded', 'withdrawal_executed']);
+
+  const unsubscribeResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/public/push-subscriptions/unsubscribe',
+    payload: {
+      vaultAddress,
+      endpoint: subscription.endpoint,
+    },
+  });
+  assert.equal(unsubscribeResponse.statusCode, 200);
+  assert.equal(unsubscribeResponse.json().unsubscribed, true);
+
+  const disabledStatusResponse = await app.inject({
+    method: 'GET',
+    url: `/api/v1/public/push-subscriptions/status?vaultAddress=${encodeURIComponent(vaultAddress)}&endpoint=${encodeURIComponent(subscription.endpoint)}`,
+  });
+  assert.equal(disabledStatusResponse.statusCode, 200);
+  const disabledStatus = disabledStatusResponse.json();
+  assert.equal(disabledStatus.subscribed, false);
+  assert.equal(disabledStatus.disabled, true);
 });
 
 test('Beacon API manages owner destinations and subscriptions after claim verification', async (t) => {

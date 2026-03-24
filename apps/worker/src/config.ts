@@ -56,6 +56,9 @@ export const config = {
   sesFromEmail: optionalString('SES_FROM_EMAIL') ?? 'beacon-notifications@brigidforge.com',
   publicEmailLinkSecret: optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET'),
   publicEmailSubscriptionRetentionDays: optionalEnv('PUBLIC_EMAIL_SUBSCRIPTION_RETENTION_DAYS', 30),
+  webPushVapidSubject: optionalString('WEB_PUSH_VAPID_SUBJECT') ?? 'mailto:beacon-notifications@brigidforge.com',
+  webPushVapidPublicKey: optionalString('WEB_PUSH_VAPID_PUBLIC_KEY'),
+  webPushVapidPrivateKey: optionalString('WEB_PUSH_VAPID_PRIVATE_KEY'),
 } as const;
 
 export type Config = typeof config;
