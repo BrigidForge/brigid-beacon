@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { DeploymentProof, NormalizedEvent, VaultMetadata, VaultStatus } from '@brigid/beacon-shared-types';
 import { useSearchParams } from 'react-router-dom';
 import { fetchVaultBundle } from '../lib/api';
+import { useOperatorSession } from './OperatorSessionProvider';
 import type { WalletSession } from '../lib/operatorVault';
 import type { WalletConnectionKind } from '../lib/operatorVault';
 import { VaultStatusTab } from './VaultStatusTab';
@@ -75,6 +76,7 @@ export function OperatorVaultWorkspace(props: {
   ensureWallet: (kind?: WalletConnectionKind) => Promise<WalletSession>;
 }) {
   const { vaultAddress, walletSession, ensureWallet } = props;
+  const { refreshOwnedVaults } = useOperatorSession();
   const [searchParams] = useSearchParams();
   const requestedTab = parseVaultTab(searchParams.get('tab'));
   const autoSelectWebPush = searchParams.get('setupPush') === '1';
@@ -111,6 +113,7 @@ export function OperatorVaultWorkspace(props: {
         if (!cancelled) {
           setBundle(next);
           setError(null);
+          if (bg) void refreshOwnedVaults();
         }
       } catch (err) {
         if (!cancelled && !bg) {

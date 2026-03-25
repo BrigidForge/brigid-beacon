@@ -37,6 +37,7 @@ type OperatorSessionContextValue = {
   handleDisconnect: () => Promise<void>;
   clearWalletFeedback: () => void;
   walletConnectAvailable: boolean;
+  refreshOwnedVaults: () => Promise<void>;
 };
 
 const OperatorSessionContext = createContext<OperatorSessionContextValue | null>(null);
@@ -264,6 +265,12 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
     setWalletMessage(null);
   }
 
+  async function refreshOwnedVaults() {
+    const session = walletSession;
+    if (!session) return;
+    await loadOwnedVaults(session.address).catch(() => undefined);
+  }
+
   const value = useMemo<OperatorSessionContextValue>(
     () => ({
       walletSession,
@@ -279,6 +286,7 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
       handleDisconnect,
       clearWalletFeedback,
       walletConnectAvailable: walletConnectEnabled(),
+      refreshOwnedVaults,
     }),
     [
       ownedVaults,
