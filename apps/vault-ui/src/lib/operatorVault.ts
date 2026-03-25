@@ -22,6 +22,14 @@ export const DEFAULT_RPC_URL =
     ? import.meta.env.VITE_OPERATOR_RPC_URL
     : '') || 'https://bsc-testnet.publicnode.com';
 
+// WalletConnect routes read calls (eth_estimateGas, eth_call) through rpcMap
+// rather than the WC relay. Using the same URL as DEFAULT_RPC_URL risks tx
+// estimation failures if the configured RPC has allowlist restrictions (e.g.
+// dRPC rejects requests without a matching Origin), which prevents the signing
+// request from ever reaching MetaMask. Use a hardcoded reliable public endpoint
+// for WC's internal reads only — signing still goes through the WC relay.
+const WC_FALLBACK_RPC_URL = 'https://bsc-testnet.publicnode.com';
+
 export const DEFAULT_OPERATOR_CHAIN_ID = Number(
   (typeof import.meta !== 'undefined' &&
   typeof import.meta.env === 'object' &&
@@ -287,7 +295,7 @@ async function getWalletConnectProvider(): Promise<WalletConnectProvider> {
     projectId,
     optionalChains: [DEFAULT_OPERATOR_CHAIN_ID],
     rpcMap: {
-      [DEFAULT_OPERATOR_CHAIN_ID]: DEFAULT_RPC_URL,
+      [DEFAULT_OPERATOR_CHAIN_ID]: WC_FALLBACK_RPC_URL,
     },
     showQrModal: false,
     methods: [
