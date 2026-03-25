@@ -526,6 +526,14 @@ export function openWalletForSigning(session: WalletSession, delayMs = 5_000): s
   return redirect;
 }
 
+// Waits for a transaction receipt using a direct RPC provider rather than
+// the WalletConnect signer, so mining confirmation works even if the
+// WalletConnect connection is disrupted when the user returns from the wallet.
+async function waitForTx(hash: string): Promise<void> {
+  const provider = new ethers.JsonRpcProvider(DEFAULT_RPC_URL, undefined, { batchMaxCount: 1 });
+  await provider.waitForTransaction(hash);
+}
+
 export async function requestWithdrawalTx(args: {
   vaultAddress: string;
   signer: ethers.JsonRpcSigner;
@@ -542,9 +550,10 @@ export async function requestWithdrawalTx(args: {
       ? await contract.requestExcessWithdrawal(amount, purposeHash)
       : await contract.requestWithdrawal(amount, purposeHash);
 
-  args.onSubmitted?.(tx.hash as string);
-  await tx.wait();
-  return tx.hash as string;
+  const hash = tx.hash as string;
+  args.onSubmitted?.(hash);
+  await waitForTx(hash);
+  return hash;
 }
 
 export async function cancelWithdrawalTx(
@@ -554,9 +563,10 @@ export async function cancelWithdrawalTx(
 ): Promise<string> {
   const contract = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
   const tx = await contract.cancelWithdrawal();
-  onSubmitted?.(tx.hash as string);
-  await tx.wait();
-  return tx.hash as string;
+  const hash = tx.hash as string;
+  onSubmitted?.(hash);
+  await waitForTx(hash);
+  return hash;
 }
 
 export async function executeWithdrawalTx(
@@ -566,7 +576,8 @@ export async function executeWithdrawalTx(
 ): Promise<string> {
   const contract = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
   const tx = await contract.executeWithdrawal();
-  onSubmitted?.(tx.hash as string);
-  await tx.wait();
-  return tx.hash as string;
+  const hash = tx.hash as string;
+  onSubmitted?.(hash);
+  await waitForTx(hash);
+  return hash;
 }
