@@ -59,12 +59,16 @@ export function TimelineComponent(props: {
           : livePhaseLabel;
   const isSettled = outcome !== 'active';
 
+  // When a request is still "active" but all phases have expired (not yet indexed),
+  // show empty bars (0%) rather than full bars — the request is effectively idle.
+  const showEmptyBars = outcome === 'active' && phase === 'expired';
+
   const segments = [
     {
       label: 'Cancel phase',
-      progress: isSettled ? 100 : phaseProgress(effectiveNow, props.requestedAt, cancelEnd, effectiveNow >= cancelEnd),
+      progress: showEmptyBars ? 0 : isSettled ? 100 : phaseProgress(effectiveNow, props.requestedAt, cancelEnd, effectiveNow >= cancelEnd),
       active: outcome === 'active' && phase === 'cancel',
-      complete: isSettled || effectiveNow >= cancelEnd,
+      complete: !showEmptyBars && (isSettled || effectiveNow >= cancelEnd),
       className:
         outcome === 'active' && phase === 'cancel'
           ? 'from-rose-500 via-rose-400 to-rose-300 shadow-[0_0_24px_rgba(244,63,94,0.45)]'
@@ -72,16 +76,16 @@ export function TimelineComponent(props: {
     },
     {
       label: 'Delay phase',
-      progress: isSettled ? 100 : phaseProgress(effectiveNow, cancelEnd, props.executableAt, effectiveNow >= props.executableAt),
+      progress: showEmptyBars ? 0 : isSettled ? 100 : phaseProgress(effectiveNow, cancelEnd, props.executableAt, effectiveNow >= props.executableAt),
       active: outcome === 'active' && phase === 'delay',
-      complete: isSettled || effectiveNow >= props.executableAt,
+      complete: !showEmptyBars && (isSettled || effectiveNow >= props.executableAt),
       className: 'from-amber-300 to-sky-300',
     },
     {
       label: 'Execution phase',
-      progress: isSettled ? 100 : phaseProgress(effectiveNow, props.executableAt, props.expiresAt, effectiveNow >= props.expiresAt),
+      progress: showEmptyBars ? 0 : isSettled ? 100 : phaseProgress(effectiveNow, props.executableAt, props.expiresAt, effectiveNow >= props.expiresAt),
       active: outcome === 'active' && phase === 'execution',
-      complete: isSettled || effectiveNow >= props.expiresAt,
+      complete: !showEmptyBars && (isSettled || effectiveNow >= props.expiresAt),
       className: 'from-sky-300 to-emerald-300',
     },
   ];

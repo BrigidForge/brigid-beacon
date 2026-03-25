@@ -467,6 +467,7 @@ export async function switchToOperatorChain(): Promise<WalletSession> {
     // 4902 = chain not yet added to wallet — add it first, then switch.
     if ((err as { code?: number }).code === 4902) {
       await activeWalletSession.provider.send('wallet_addEthereumChain', [BSC_TESTNET_CHAIN_PARAMS]);
+      await activeWalletSession.provider.send('wallet_switchEthereumChain', [{ chainId: hexChainId }]);
     } else {
       throw err;
     }
@@ -531,6 +532,7 @@ export async function requestWithdrawalTx(args: {
   amountInput: string;
   bucket: 'protected' | 'excess';
   purposeText: string;
+  onSubmitted?: (hash: string) => void;
 }): Promise<string> {
   const amount = ethers.parseUnits(args.amountInput, 18);
   const contract = new ethers.Contract(args.vaultAddress, VAULT_ABI, args.signer);
@@ -540,20 +542,31 @@ export async function requestWithdrawalTx(args: {
       ? await contract.requestExcessWithdrawal(amount, purposeHash)
       : await contract.requestWithdrawal(amount, purposeHash);
 
+  args.onSubmitted?.(tx.hash as string);
   await tx.wait();
   return tx.hash as string;
 }
 
-export async function cancelWithdrawalTx(vaultAddress: string, signer: ethers.JsonRpcSigner): Promise<string> {
+export async function cancelWithdrawalTx(
+  vaultAddress: string,
+  signer: ethers.JsonRpcSigner,
+  onSubmitted?: (hash: string) => void,
+): Promise<string> {
   const contract = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
   const tx = await contract.cancelWithdrawal();
+  onSubmitted?.(tx.hash as string);
   await tx.wait();
   return tx.hash as string;
 }
 
-export async function executeWithdrawalTx(vaultAddress: string, signer: ethers.JsonRpcSigner): Promise<string> {
+export async function executeWithdrawalTx(
+  vaultAddress: string,
+  signer: ethers.JsonRpcSigner,
+  onSubmitted?: (hash: string) => void,
+): Promise<string> {
   const contract = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
   const tx = await contract.executeWithdrawal();
+  onSubmitted?.(tx.hash as string);
   await tx.wait();
   return tx.hash as string;
 }

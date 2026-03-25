@@ -53,7 +53,7 @@ function parsePushSubscription(value: unknown): PushSubscriptionJson | null {
 
 function buildPayload(event: DispatcheableEvent, formatted: FormattedNotification) {
   return JSON.stringify({
-    title: 'Brigid Beacon',
+    title: 'Vault Activity Notification',
     body: formatted.shortSummary,
     icon: '/media/icon-192.png',
     badge: '/media/icon-192.png',

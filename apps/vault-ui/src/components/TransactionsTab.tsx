@@ -297,8 +297,14 @@ export function TransactionsTab(props: {
     }
 
     setMessage('Switching wallet to BNB Smart Chain Testnet...');
-    const updated = await switchToOperatorChain();
-    return updated;
+    const chainSwitchUrl = getWalletApprovalAssistUrl(connection);
+    if (chainSwitchUrl) setWalletApproveUrl(chainSwitchUrl);
+    try {
+      const updated = await switchToOperatorChain();
+      return updated;
+    } finally {
+      setWalletApproveUrl(null);
+    }
   }
 
   async function handleRequestWithdrawal() {
@@ -316,6 +322,10 @@ export function TransactionsTab(props: {
         amountInput: amountInput.trim(),
         bucket: withdrawalType,
         purposeText: purposeInput.trim(),
+        onSubmitted: (hash) => {
+          clearWalletApprovalFlow();
+          setMessage(`Transaction submitted (${hash.slice(0, 10)}…). Waiting for confirmation...`);
+        },
       });
       startWalletApprovalFlow(connection);
       const txHash = await txHashPromise;
@@ -335,7 +345,10 @@ export function TransactionsTab(props: {
     preserveScrollPosition(); setBusy(true); setError(null); setMessage(null);
     try {
       connection = await ensureCorrectChain(connection);
-      const txHashPromise = cancelWithdrawalTx(props.vaultAddress, connection.signer);
+      const txHashPromise = cancelWithdrawalTx(props.vaultAddress, connection.signer, (hash) => {
+        clearWalletApprovalFlow();
+        setMessage(`Transaction submitted (${hash.slice(0, 10)}…). Waiting for confirmation...`);
+      });
       startWalletApprovalFlow(connection);
       const txHash = await txHashPromise;
       if (latestRequest) setRequestOverride({ ...latestRequest, outcome: 'canceled', settledAt: Math.floor(Date.now() / 1000) });
@@ -351,7 +364,10 @@ export function TransactionsTab(props: {
     preserveScrollPosition(); setBusy(true); setError(null); setMessage(null);
     try {
       connection = await ensureCorrectChain(connection);
-      const txHashPromise = executeWithdrawalTx(props.vaultAddress, connection.signer);
+      const txHashPromise = executeWithdrawalTx(props.vaultAddress, connection.signer, (hash) => {
+        clearWalletApprovalFlow();
+        setMessage(`Transaction submitted (${hash.slice(0, 10)}…). Waiting for confirmation...`);
+      });
       startWalletApprovalFlow(connection);
       const txHash = await txHashPromise;
       if (latestRequest) setRequestOverride({ ...latestRequest, outcome: 'executed', settledAt: Math.floor(Date.now() / 1000) });
