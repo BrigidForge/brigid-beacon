@@ -6,6 +6,79 @@ import { CopyableAddress } from '../components/CopyableAddress';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { NETWORK_NAMES, fetchTokenSymbol } from '../lib/operatorVault';
 
+function WalletConnectQrPanel(props: { uri: string }) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function renderQr() {
+      try {
+        const { toDataURL } = await import('qrcode');
+        const nextDataUrl = await toDataURL(props.uri, {
+          margin: 1,
+          width: 320,
+          color: {
+            dark: '#e2e8f0',
+            light: '#0f172a',
+          },
+        });
+        if (!cancelled) {
+          setQrDataUrl(nextDataUrl);
+        }
+      } catch {
+        if (!cancelled) {
+          setQrDataUrl(null);
+        }
+      }
+    }
+
+    void renderQr();
+    return () => {
+      cancelled = true;
+    };
+  }, [props.uri]);
+
+  return (
+    <div className="mt-5 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4">
+      <p className="text-xs uppercase tracking-widest text-sky-300/70">Scan With MetaMask Mobile</p>
+      <p className="mt-1 text-sm leading-6 text-slate-200">
+        Open MetaMask on your phone, scan this QR code, and approve transactions there while keeping Beacon open on this desktop browser.
+      </p>
+      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-center">
+        <div className="flex h-44 w-44 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/90 p-3">
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt="WalletConnect QR code" className="h-full w-full rounded-xl" />
+          ) : (
+            <p className="text-center text-xs text-slate-400">Generating QR code...</p>
+          )}
+        </div>
+        <div className="flex-1">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Pairing URI</p>
+          <p className="mt-2 break-all rounded-xl border border-white/10 bg-slate-950/70 px-3 py-3 text-xs text-slate-300">
+            {props.uri}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => { void navigator.clipboard.writeText(props.uri); }}
+              className="rounded-xl bg-sky-300 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-sky-200"
+            >
+              Copy URI
+            </button>
+            <a
+              href={props.uri}
+              className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-white hover:border-sky-300/40"
+            >
+              Open On This Device
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Operator() {
   return (
     <ErrorBoundary label="Operator panel error">
@@ -49,6 +122,12 @@ function OperatorContent() {
 
   // ── Not connected: landing ───────────────────────────────────
   const hasInjectedWallet = typeof window !== 'undefined' && 'ethereum' in window;
+  const prefersDesktopLayout =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(min-width: 1024px)').matches;
+  const showDesktopWalletConnectQr = !hasInjectedWallet && prefersDesktopLayout;
+  const walletConnectButtonLabel = showDesktopWalletConnectQr ? 'Scan With MetaMask Mobile' : 'iPhone / WalletConnect';
 
   if (!walletSession) {
     return (
@@ -77,7 +156,7 @@ function OperatorContent() {
                 }`}
               >
                 <span className="text-lg">📱</span>
-                iPhone / WalletConnect
+                {walletConnectButtonLabel}
               </button>
               <button
                 type="button"
@@ -93,31 +172,39 @@ function OperatorContent() {
                 Connect Browser Wallet
               </button>
               {!hasInjectedWallet && (
-                <p className="text-center text-xs text-slate-500">No browser wallet extension detected</p>
+                <p className="text-center text-xs text-slate-500">
+                  {showDesktopWalletConnectQr
+                    ? 'No browser wallet extension detected. Use the WalletConnect QR code below to sign with MetaMask mobile.'
+                    : 'No browser wallet extension detected'}
+                </p>
               )}
             </div>
 
             {/* WalletConnect URI */}
             {walletConnectUri ? (
-              <div className="mt-5 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4">
-                <p className="text-xs uppercase tracking-widest text-sky-300/70">Pairing URI ready</p>
-                <p className="mt-1 text-sm text-slate-200">Open in your iPhone wallet or copy the URI.</p>
-                <div className="mt-3 flex gap-2">
-                  <a
-                    href={walletConnectUri}
-                    className="rounded-xl bg-sky-300 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-sky-200"
-                  >
-                    Open
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => { void navigator.clipboard.writeText(walletConnectUri); }}
-                    className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-white hover:border-sky-300/40"
-                  >
-                    Copy URI
-                  </button>
+              showDesktopWalletConnectQr ? (
+                <WalletConnectQrPanel uri={walletConnectUri} />
+              ) : (
+                <div className="mt-5 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4">
+                  <p className="text-xs uppercase tracking-widest text-sky-300/70">Pairing URI ready</p>
+                  <p className="mt-1 text-sm text-slate-200">Open in your iPhone wallet or copy the URI.</p>
+                  <div className="mt-3 flex gap-2">
+                    <a
+                      href={walletConnectUri}
+                      className="rounded-xl bg-sky-300 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-sky-200"
+                    >
+                      Open
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => { void navigator.clipboard.writeText(walletConnectUri); }}
+                      className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-white hover:border-sky-300/40"
+                    >
+                      Copy URI
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )
             ) : walletConnectStatus ? (
               <p className="mt-4 text-sm text-slate-400">{walletConnectStatus}</p>
             ) : null}

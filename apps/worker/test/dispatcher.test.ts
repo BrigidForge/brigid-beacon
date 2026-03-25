@@ -12,6 +12,15 @@ const { runDispatcherCycle } = await import('../src/dispatcher.js');
 const prisma = new PrismaClient({
   datasourceUrl: 'postgresql://postgres:postgres@127.0.0.1:5432/beacon_owner_claims_validation',
 });
+let databaseAvailable = true;
+
+try {
+  await prisma.$connect();
+} catch {
+  databaseAvailable = false;
+}
+
+const dbTest = databaseAvailable ? test : test.skip;
 
 const vaultAddress = getAddress('0x00000000000000000000000000000000000000d1');
 const ownerAddress = getAddress('0x00000000000000000000000000000000000000d2');
@@ -98,11 +107,13 @@ async function seedDispatcherFixture() {
 }
 
 test.after(async () => {
-  await resetTables();
+  if (databaseAvailable) {
+    await resetTables();
+  }
   await prisma.$disconnect();
 });
 
-test('runDispatcherCycle records sent delivery rows for subscription-backed notifications', async () => {
+dbTest('runDispatcherCycle records sent delivery rows for subscription-backed notifications', async () => {
   await seedDispatcherFixture();
 
   const calls: string[] = [];
@@ -136,7 +147,7 @@ test('runDispatcherCycle records sent delivery rows for subscription-backed noti
   assert.ok(event?.dispatchedAt);
 });
 
-test('runDispatcherCycle leaves event undispatched when a subscription delivery fails', async () => {
+dbTest('runDispatcherCycle leaves event undispatched when a subscription delivery fails', async () => {
   await seedDispatcherFixture();
 
   const result = await runDispatcherCycle({
@@ -168,7 +179,7 @@ test('runDispatcherCycle leaves event undispatched when a subscription delivery 
   assert.equal(event?.dispatchedAt, null);
 });
 
-test('runDispatcherCycle defers withdrawal request notifications until the cancel window closes', async () => {
+dbTest('runDispatcherCycle defers withdrawal request notifications until the cancel window closes', async () => {
   await resetTables();
 
   await prisma.vault.create({
@@ -283,7 +294,7 @@ test('runDispatcherCycle defers withdrawal request notifications until the cance
   }
 });
 
-test('runDispatcherCycle skips delayed withdrawal request notifications once a terminal event exists', async () => {
+dbTest('runDispatcherCycle skips delayed withdrawal request notifications once a terminal event exists', async () => {
   await resetTables();
 
   await prisma.vault.create({
@@ -397,7 +408,7 @@ test('runDispatcherCycle skips delayed withdrawal request notifications once a t
   }
 });
 
-test('runDispatcherCycle sends public email notifications for actionable withdrawal requests', async () => {
+dbTest('runDispatcherCycle sends public email notifications for actionable withdrawal requests', async () => {
   await resetTables();
 
   await prisma.vault.create({
