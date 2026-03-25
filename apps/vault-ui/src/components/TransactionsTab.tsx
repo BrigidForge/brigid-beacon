@@ -7,14 +7,14 @@ import { formatDurationSeconds, formatTokenAmount, formatUnixSeconds, shortenAdd
 import {
   clearWalletOpenTimer,
   cancelWithdrawalTx,
-  DEFAULT_OPERATOR_CHAIN_ID,
+  ensureExpectedChain,
   executeWithdrawalTx,
   EXPLORERS,
   getWalletApprovalAssistUrl,
   openWalletForSigning,
   readOperatorSnapshot,
+  refreshActiveWalletSession,
   requestWithdrawalTx,
-  switchToOperatorChain,
   walletNeedsSigningAssist,
   type OperatorVaultSnapshot,
   type WalletSession,
@@ -290,20 +290,16 @@ export function TransactionsTab(props: {
   const requestButtonDisabled = !canRequest || busy || (() => { try { return ethers.parseUnits(amountInput || '0', 18) > selectedAvailable; } catch { return true; } })();
 
   async function ensureCorrectChain(connection: WalletSession): Promise<WalletSession> {
-    if (!snapshot || connection.chainId === snapshot.chainId) return connection;
-
-    if (snapshot.chainId !== DEFAULT_OPERATOR_CHAIN_ID) {
-      throw new Error(`Unsupported vault chain ${snapshot.chainId}.`);
-    }
+    if (!snapshot) return connection;
+    const refreshed = await refreshActiveWalletSession();
+    if (refreshed.chainId === snapshot.chainId) return refreshed;
 
     setMessage('Switching wallet to BNB Smart Chain Testnet...');
-    const chainSwitchUrl = getWalletApprovalAssistUrl(connection);
-    if (chainSwitchUrl) setWalletApproveUrl(chainSwitchUrl);
+    startWalletApprovalFlow(refreshed);
     try {
-      const updated = await switchToOperatorChain();
-      return updated;
+      return await ensureExpectedChain(snapshot.chainId);
     } finally {
-      setWalletApproveUrl(null);
+      clearWalletApprovalFlow();
     }
   }
 

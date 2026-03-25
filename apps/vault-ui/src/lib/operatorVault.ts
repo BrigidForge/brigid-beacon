@@ -100,6 +100,7 @@ export type WalletSession = {
   address: string;
   chainId: number;
   kind: WalletConnectionKind;
+  transport: OperatorEthereumProvider;
 };
 
 export type PendingWithdrawalView = {
@@ -260,7 +261,7 @@ export async function readOperatorSnapshot(vaultAddress: string): Promise<Operat
 }
 
 type WalletConnectProvider = OperatorEthereumProvider & {
-  connect(): Promise<void>;
+  connect(opts?: { chains?: number[]; optionalChains?: number[] }): Promise<void>;
   disconnect(): Promise<void>;
   signer?: {
     uri?: string;
@@ -274,6 +275,57 @@ let walletConnectProvider: WalletConnectProvider | null = null;
 let activeWalletSession: WalletSession | null = null;
 let walletConnectDisplayUriHandlerBound = false;
 let walletConnectDisplayUriCallback: ((uri: string) => void) | undefined;
+const activeWalletSessionListeners = new Set<(session: WalletSession | null) => void>();
+const boundSessionProviders = new WeakSet<object>();
+
+function setActiveWalletSession(session: WalletSession | null): WalletSession | null {
+  activeWalletSession = session;
+  for (const listener of activeWalletSessionListeners) {
+    listener(session);
+  }
+  return session;
+}
+
+function bindSessionProviderEvents(provider: OperatorEthereumProvider): void {
+  if (typeof provider !== 'object' || provider == null || boundSessionProviders.has(provider as object)) {
+    return;
+  }
+
+  provider.on?.('accountsChanged', () => {
+    void refreshActiveWalletSession().catch(() => {
+      setActiveWalletSession(null);
+    });
+  });
+  provider.on?.('chainChanged', () => {
+    void refreshActiveWalletSession().catch(() => {
+      setActiveWalletSession(null);
+    });
+  });
+  provider.on?.('disconnect', () => {
+    setActiveWalletSession(null);
+  });
+  boundSessionProviders.add(provider as object);
+}
+
+async function buildWalletSession(
+  transport: OperatorEthereumProvider,
+  kind: WalletConnectionKind,
+): Promise<WalletSession> {
+  bindSessionProviderEvents(transport);
+  const provider = new ethers.BrowserProvider(transport as ethers.Eip1193Provider);
+  const signer = await provider.getSigner();
+  const address = await signer.getAddress();
+  const network = await provider.getNetwork();
+
+  return {
+    provider,
+    signer,
+    address,
+    chainId: Number(network.chainId),
+    kind,
+    transport,
+  };
+}
 
 async function getWalletConnectProvider(): Promise<WalletConnectProvider> {
   if (walletConnectProvider) {
@@ -293,7 +345,10 @@ async function getWalletConnectProvider(): Promise<WalletConnectProvider> {
 
   walletConnectProvider = (await EthereumProvider.init({
     projectId,
-    optionalChains: [DEFAULT_OPERATOR_CHAIN_ID],
+    // Require the Beacon operator chain up front so WalletConnect sessions
+    // are negotiated for BSC testnet instead of inheriting an arbitrary
+    // active network from the wallet.
+    chains: [DEFAULT_OPERATOR_CHAIN_ID],
     rpcMap: {
       [DEFAULT_OPERATOR_CHAIN_ID]: WC_FALLBACK_RPC_URL,
     },
@@ -345,7 +400,7 @@ export async function connectWallet(
   },
 ): Promise<WalletSession> {
   if (activeWalletSession && activeWalletSession.kind === kind) {
-    return activeWalletSession;
+    return refreshActiveWalletSession();
   }
 
   let eip1193Provider: OperatorEthereumProvider;
@@ -359,7 +414,7 @@ export async function connectWallet(
         }
       });
       walletConnect.on?.('disconnect', () => {
-        activeWalletSession = null;
+        setActiveWalletSession(null);
       });
       walletConnectDisplayUriHandlerBound = true;
     }
@@ -392,7 +447,9 @@ export async function connectWallet(
         }, 200);
       });
 
-      const connectPromise = walletConnect.connect();
+      const connectPromise = walletConnect.connect({
+        chains: [DEFAULT_OPERATOR_CHAIN_ID],
+      });
       await Promise.race([
         connectPromise,
         new Promise<never>((_, reject) => {
@@ -425,20 +482,7 @@ export async function connectWallet(
     eip1193Provider = injected;
   }
 
-  const provider = new ethers.BrowserProvider(eip1193Provider as ethers.Eip1193Provider);
-  const signer = await provider.getSigner();
-  const address = await signer.getAddress();
-  const network = await provider.getNetwork();
-
-  activeWalletSession = {
-    provider,
-    signer,
-    address,
-    chainId: Number(network.chainId),
-    kind,
-  };
-
-  return activeWalletSession;
+  return setActiveWalletSession(await buildWalletSession(eip1193Provider, kind))!;
 }
 
 export async function disconnectWallet(kind: WalletConnectionKind | null): Promise<void> {
@@ -448,11 +492,30 @@ export async function disconnectWallet(kind: WalletConnectionKind | null): Promi
     walletConnectDisplayUriHandlerBound = false;
     walletConnectDisplayUriCallback = undefined;
   }
-  activeWalletSession = null;
+  setActiveWalletSession(null);
 }
 
 export function getActiveWalletSession(): WalletSession | null {
   return activeWalletSession;
+}
+
+export function subscribeActiveWalletSession(
+  listener: (session: WalletSession | null) => void,
+): () => void {
+  activeWalletSessionListeners.add(listener);
+  return () => {
+    activeWalletSessionListeners.delete(listener);
+  };
+}
+
+export async function refreshActiveWalletSession(): Promise<WalletSession> {
+  if (!activeWalletSession) {
+    throw new Error('No active wallet session.');
+  }
+
+  return setActiveWalletSession(
+    await buildWalletSession(activeWalletSession.transport, activeWalletSession.kind),
+  )!;
 }
 
 // Chain params used by wallet_addEthereumChain if BSC testnet isn't in the wallet yet.
@@ -470,20 +533,44 @@ export async function switchToOperatorChain(): Promise<WalletSession> {
   if (!activeWalletSession) throw new Error('No active wallet session.');
   const hexChainId = '0x' + DEFAULT_OPERATOR_CHAIN_ID.toString(16);
   try {
-    await activeWalletSession.provider.send('wallet_switchEthereumChain', [{ chainId: hexChainId }]);
+    await activeWalletSession.transport.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: hexChainId }],
+    });
   } catch (err: unknown) {
     // 4902 = chain not yet added to wallet — add it first, then switch.
     if ((err as { code?: number }).code === 4902) {
-      await activeWalletSession.provider.send('wallet_addEthereumChain', [BSC_TESTNET_CHAIN_PARAMS]);
-      await activeWalletSession.provider.send('wallet_switchEthereumChain', [{ chainId: hexChainId }]);
+      await activeWalletSession.transport.request({
+        method: 'wallet_addEthereumChain',
+        params: [BSC_TESTNET_CHAIN_PARAMS],
+      });
+      await activeWalletSession.transport.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: hexChainId }],
+      });
     } else {
       throw err;
     }
   }
-  const network = await activeWalletSession.provider.getNetwork();
-  const signer = await activeWalletSession.provider.getSigner();
-  activeWalletSession = { ...activeWalletSession, signer, chainId: Number(network.chainId) };
-  return activeWalletSession;
+  return refreshActiveWalletSession();
+}
+
+export async function ensureExpectedChain(expectedChainId: number): Promise<WalletSession> {
+  let session = await refreshActiveWalletSession();
+  if (session.chainId === expectedChainId) {
+    return session;
+  }
+
+  if (expectedChainId !== DEFAULT_OPERATOR_CHAIN_ID) {
+    throw new Error(`Unsupported vault chain ${expectedChainId}.`);
+  }
+
+  session = await switchToOperatorChain();
+  if (session.chainId !== expectedChainId) {
+    throw new Error(`Wrong network. Please switch to ${NETWORK_NAMES[expectedChainId] ?? `Chain ${expectedChainId}`}.`);
+  }
+
+  return session;
 }
 
 // Returns the WalletConnect session deep-link URL, or null if unavailable.

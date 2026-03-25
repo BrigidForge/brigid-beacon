@@ -11,7 +11,9 @@ import {
   connectWallet,
   disconnectWallet,
   getActiveWalletSession,
+  refreshActiveWalletSession,
   switchToOperatorChain,
+  subscribeActiveWalletSession,
   walletConnectEnabled,
   type WalletConnectionKind,
   type WalletSession,
@@ -115,6 +117,12 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    return subscribeActiveWalletSession((session) => {
+      setWalletSession(session);
+    });
+  }, []);
+
+  useEffect(() => {
     const existingSession = getActiveWalletSession();
     if (existingSession) {
       void loadOwnedVaults(existingSession.address).then((vaults) => {
@@ -160,25 +168,42 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
       });
     }
 
+    function syncActiveSession() {
+      const existingSession = getActiveWalletSession();
+      if (!existingSession) return;
+      void refreshActiveWalletSession().catch(() => undefined);
+    }
+
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
         retryRestore();
+        syncActiveSession();
       }
     }
 
     window.addEventListener('pageshow', retryRestore);
     window.addEventListener('focus', retryRestore);
+    window.addEventListener('pageshow', syncActiveSession);
+    window.addEventListener('focus', syncActiveSession);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.removeEventListener('pageshow', retryRestore);
       window.removeEventListener('focus', retryRestore);
+      window.removeEventListener('pageshow', syncActiveSession);
+      window.removeEventListener('focus', syncActiveSession);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [walletSession]);
 
   async function ensureWallet(kind: WalletConnectionKind = walletSession?.kind ?? 'injected') {
     if (walletSession && walletSession.kind === kind) {
-      return walletSession;
+      try {
+        return await refreshActiveWalletSession();
+      } catch {
+        await disconnectWallet(kind).catch(() => undefined);
+        clearStoredWalletSession();
+        setWalletSession(null);
+      }
     }
 
     setWalletBusy(true);

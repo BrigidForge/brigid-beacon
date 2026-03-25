@@ -199,10 +199,12 @@ export function OwnerSettings(props: {
   async function handleClaim() {
     setBusy(true); setError(null); setMessage(null);
     try {
-      const nonce = await requestClaimNonce(vaultAddress, ownerAddress);
+      // Prime the iOS WalletConnect handoff before the first await so Safari
+      // still treats the wallet jump as part of the user's tap.
       setWalletOpenUrl(getWalletApprovalAssistUrl(walletSession));
+      openWalletForSigning(walletSession, 7_500);
+      const nonce = await requestClaimNonce(vaultAddress, ownerAddress);
       const signaturePromise = walletSession.signer.signMessage(nonce.message);
-      openWalletForSigning(walletSession);
       const signature = await signaturePromise;
       const verified = await verifyClaim(vaultAddress, ownerAddress, nonce.nonce, signature);
       storeOwnerSession({ sessionToken: verified.sessionToken, ownerAddress, expiresAt: verified.sessionExpiresAt });
