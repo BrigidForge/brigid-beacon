@@ -65,7 +65,7 @@ export async function fetchTokenSymbol(tokenAddress: string): Promise<string> {
   const key = tokenAddress.toLowerCase();
   if (tokenSymbolCache.has(key)) return tokenSymbolCache.get(key)!;
   try {
-    const provider = new ethers.JsonRpcProvider(DEFAULT_RPC_URL);
+    const provider = new ethers.JsonRpcProvider(DEFAULT_RPC_URL, undefined, { batchMaxCount: 1 });
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
     const symbol = await (contract.symbol() as Promise<string>);
     tokenSymbolCache.set(key, symbol);
@@ -152,7 +152,7 @@ export function walletConnectEnabled(): boolean {
 }
 
 export async function readOperatorSnapshot(vaultAddress: string): Promise<OperatorVaultSnapshot> {
-  const provider = new ethers.JsonRpcProvider(DEFAULT_RPC_URL);
+  const provider = new ethers.JsonRpcProvider(DEFAULT_RPC_URL, undefined, { batchMaxCount: 1 });
   const currentBlock = await provider.getBlockNumber();
   const contract = new ethers.Contract(vaultAddress, VAULT_ABI, provider);
 
