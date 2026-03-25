@@ -490,7 +490,7 @@ export function toNormalizedEvent(row: {
 }
 
 export function createApiContext(prisma: PrismaClient, config: ApiConfig, options: { chainProvider?: ChainProvider | null } = {}) {
-  const chainProvider = options.chainProvider ?? (config.rpcUrl ? new JsonRpcProvider(config.rpcUrl) : null);
+  const chainProvider = options.chainProvider ?? (config.rpcUrl ? new JsonRpcProvider(config.rpcUrl, undefined, { batchMaxCount: 1 }) : null);
 
   async function getVaultByAddress(address: string) {
     return prisma.vault.findUnique({ where: { id: address } });
