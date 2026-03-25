@@ -143,6 +143,7 @@ export function TransactionsTab(props: {
   const [walletCountdown, setWalletCountdown] = useState<number | null>(null);
   const pendingScrollRestoreRef = useRef<number | null>(null);
   const walletCountdownTimerRef = useRef<number | null>(null);
+  const CHAIN_SWITCH_MESSAGE = 'Switching wallet to BNB Smart Chain Testnet...';
 
   // Must be called synchronously before the first await in a click handler.
   // For iOS WalletConnect, open the handoff page in a trusted user gesture
@@ -182,6 +183,11 @@ export function TransactionsTab(props: {
     walletCountdownTimerRef.current = null;
     setWalletCountdown(null);
     setWalletApproveUrl(null);
+  }
+
+  function clearStaleWalletProgress() {
+    clearWalletApprovalFlow();
+    setMessage((current) => (current === CHAIN_SWITCH_MESSAGE ? null : current));
   }
 
   useEffect(() => () => {
@@ -234,6 +240,7 @@ export function TransactionsTab(props: {
 
   useEffect(() => {
     function handleReturnToApp() {
+      clearStaleWalletProgress();
       restoreScrollPosition();
       void refresh({ background: true });
     }
@@ -288,13 +295,14 @@ export function TransactionsTab(props: {
 
   const canRequest = snapshot != null && walletConnected && hasActiveBeaconSession && !pending && amountInput.trim().length > 0 && purposeInput.trim().length > 0;
   const requestButtonDisabled = !canRequest || busy || (() => { try { return ethers.parseUnits(amountInput || '0', 18) > selectedAvailable; } catch { return true; } })();
+  const showWalletProgress = busy && (walletCountdown != null || walletApproveUrl != null || message === CHAIN_SWITCH_MESSAGE);
 
   async function ensureCorrectChain(connection: WalletSession): Promise<WalletSession> {
     if (!snapshot) return connection;
     const refreshed = await refreshActiveWalletSession();
     if (refreshed.chainId === snapshot.chainId) return refreshed;
 
-    setMessage('Switching wallet to BNB Smart Chain Testnet...');
+    setMessage(CHAIN_SWITCH_MESSAGE);
     startWalletApprovalFlow(refreshed);
     try {
       return await ensureExpectedChain(snapshot.chainId);
@@ -493,7 +501,7 @@ export function TransactionsTab(props: {
               </button>
             </DisabledWalletHint>
           </div>
-          {busy && (
+          {showWalletProgress && (
             <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm">
               <p className="text-amber-100">Connecting to wallet...</p>
               {walletCountdown != null ? (

@@ -53,7 +53,7 @@ function parsePushSubscription(value: unknown): PushSubscriptionJson | null {
 
 function buildPayload(event: DispatcheableEvent, formatted: FormattedNotification) {
   return JSON.stringify({
-    title: 'Vault Activity Notification',
+    title: 'Vault Activity Detected',
     body: formatted.shortSummary,
     icon: '/media/icon-192.png',
     badge: '/media/icon-192.png',

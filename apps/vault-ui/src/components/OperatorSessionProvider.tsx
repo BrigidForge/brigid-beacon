@@ -174,10 +174,17 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
       void refreshActiveWalletSession().catch(() => undefined);
     }
 
+    function refreshVaultSummaries() {
+      const existingSession = getActiveWalletSession();
+      if (!existingSession) return;
+      void loadOwnedVaults(existingSession.address).catch(() => undefined);
+    }
+
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
         retryRestore();
         syncActiveSession();
+        refreshVaultSummaries();
       }
     }
 
@@ -185,12 +192,16 @@ export function OperatorSessionProvider(props: { children: ReactNode }) {
     window.addEventListener('focus', retryRestore);
     window.addEventListener('pageshow', syncActiveSession);
     window.addEventListener('focus', syncActiveSession);
+    window.addEventListener('pageshow', refreshVaultSummaries);
+    window.addEventListener('focus', refreshVaultSummaries);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.removeEventListener('pageshow', retryRestore);
       window.removeEventListener('focus', retryRestore);
       window.removeEventListener('pageshow', syncActiveSession);
       window.removeEventListener('focus', syncActiveSession);
+      window.removeEventListener('pageshow', refreshVaultSummaries);
+      window.removeEventListener('focus', refreshVaultSummaries);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [walletSession]);
