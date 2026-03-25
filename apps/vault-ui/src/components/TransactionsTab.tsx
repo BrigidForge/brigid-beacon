@@ -296,6 +296,18 @@ export function TransactionsTab(props: {
   const canRequest = snapshot != null && walletConnected && hasActiveBeaconSession && !pending && amountInput.trim().length > 0 && purposeInput.trim().length > 0;
   const requestButtonDisabled = !canRequest || busy || (() => { try { return ethers.parseUnits(amountInput || '0', 18) > selectedAvailable; } catch { return true; } })();
   const showWalletProgress = busy && (walletCountdown != null || walletApproveUrl != null || message === CHAIN_SWITCH_MESSAGE);
+  const walletConnectOnDesktop =
+    props.walletSession?.kind === 'walletconnect' &&
+    !walletNeedsSigningAssist(props.walletSession);
+  const walletProgressTitle = walletConnectOnDesktop
+    ? 'Approve this transaction in MetaMask on your mobile device.'
+    : 'Connecting to wallet...';
+  const walletProgressCountdownText = walletConnectOnDesktop
+    ? 'Sending approval request to MetaMask Mobile. Your phone should open the wallet in'
+    : 'Sending request to Wallet. Wallet will open in';
+  const walletProgressLinkText = walletConnectOnDesktop
+    ? 'Open MetaMask on your mobile device to approve this transaction'
+    : 'Open MetaMask manually if it does not launch';
 
   async function ensureCorrectChain(connection: WalletSession): Promise<WalletSession> {
     if (!snapshot) return connection;
@@ -503,17 +515,17 @@ export function TransactionsTab(props: {
           </div>
           {showWalletProgress && (
             <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm">
-              <p className="text-amber-100">Connecting to wallet...</p>
+              <p className="text-amber-100">{walletProgressTitle}</p>
               {walletCountdown != null ? (
                 <p className="mt-2 text-amber-200">
-                  Sending request to Wallet. Wallet will open in {walletCountdown} second{walletCountdown === 1 ? '' : 's'}.
+                  {walletProgressCountdownText} {walletCountdown} second{walletCountdown === 1 ? '' : 's'}.
                 </p>
               ) : walletApproveUrl ? (
                 <a
                   href={walletApproveUrl}
                   className="mt-2 flex items-center justify-between text-amber-200 transition hover:text-amber-100"
                 >
-                  <span>Open MetaMask manually if it does not launch</span>
+                  <span>{walletProgressLinkText}</span>
                   <span className="ml-3 shrink-0">→</span>
                 </a>
               ) : null}
