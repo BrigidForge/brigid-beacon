@@ -12,7 +12,7 @@ import { JsonRpcProvider } from 'ethers';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { runIndexerCycle } from './indexer.js';
-import { isBlockRangeTooLargeError, shrinkBlockChunkSize } from './indexer-chunking.js';
+import { clampBlockChunkSize, isBlockRangeTooLargeError, shrinkBlockChunkSize } from './indexer-chunking.js';
 import { runDispatcherCycle } from './dispatcher.js';
 import { runCleanupCycle } from './cleanup.js';
 import { markDispatcherRun, markIndexerError, markIndexerSuccess } from './ops-state.js';
@@ -21,6 +21,7 @@ async function main() {
   const provider = new JsonRpcProvider(config.rpcUrl, undefined, { batchMaxCount: 1 });
   let pollIntervalMs = config.pollIntervalMs;
   let blockChunkSize = config.blockChunkSize;
+  let maxBlockChunkSize = config.blockChunkSize;
 
   logger.info('Beacon worker started', {
     chainId: config.chainId,
@@ -47,7 +48,8 @@ async function main() {
 
       const inSteadyState = lagBlocks <= config.steadyStateLagBlocks;
       pollIntervalMs = inSteadyState ? config.steadyStatePollIntervalMs : config.pollIntervalMs;
-      blockChunkSize = inSteadyState ? config.steadyStateBlockChunkSize : config.blockChunkSize;
+      const targetBlockChunkSize = inSteadyState ? config.steadyStateBlockChunkSize : config.blockChunkSize;
+      blockChunkSize = clampBlockChunkSize(targetBlockChunkSize, maxBlockChunkSize);
     } catch (err) {
       if (isBlockRangeTooLargeError(err)) {
         const nextBlockChunkSize = shrinkBlockChunkSize(blockChunkSize);
@@ -56,6 +58,7 @@ async function main() {
             blockChunkSize,
             nextBlockChunkSize,
           });
+          maxBlockChunkSize = Math.min(maxBlockChunkSize, nextBlockChunkSize);
           blockChunkSize = nextBlockChunkSize;
         }
       }

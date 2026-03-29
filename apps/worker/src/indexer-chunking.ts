@@ -8,3 +8,7 @@ export function isBlockRangeTooLargeError(error: unknown): boolean {
 export function shrinkBlockChunkSize(blockChunkSize: number): number {
   return Math.max(MIN_BLOCK_CHUNK_SIZE, Math.floor(blockChunkSize / 2));
 }
+
+export function clampBlockChunkSize(blockChunkSize: number, maximumChunkSize: number): number {
+  return Math.max(MIN_BLOCK_CHUNK_SIZE, Math.min(blockChunkSize, maximumChunkSize));
+}
