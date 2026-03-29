@@ -47,7 +47,7 @@ function formatNotificationEventLabel(kind: string): string {
     case 'vault_funded':
       return 'Vault funded';
     case 'protected_withdrawal_requested':
-      return 'Vested withdrawal actionable';
+      return 'Protected withdrawal actionable';
     case 'excess_withdrawal_requested':
       return 'Surplus withdrawal actionable';
     case 'withdrawal_executed':

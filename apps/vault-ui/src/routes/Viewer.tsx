@@ -264,7 +264,7 @@ function StatusTab({ metadata, status, purposeTexts, nowSeconds }: { metadata: V
             <p className="text-sm uppercase tracking-[0.25em] text-slate-400">Request Details</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <Field label="Amount" value={formatTokenAmount(activePendingRequest.amount)} />
-              <Field label="Allocation" value={activePendingRequest.requestType === 'protected' ? 'Vested allocation' : 'Surplus allocation'} />
+              <Field label="Allocation" value={activePendingRequest.requestType === 'protected' ? 'Vesting allocation' : 'Surplus allocation'} />
               <Field label="Requested at" value={formatUnixSeconds(activePendingRequest.requestedAt)} />
               <Field label="Executable at" value={formatUnixSeconds(activePendingRequest.executableAt)} />
               <Field label="Expires at" value={`${formatUnixSeconds(activePendingRequest.expiresAt)} (${formatRelativeCountdown(activePendingRequest.expiresAt)})`} />
@@ -293,7 +293,7 @@ function StatusTab({ metadata, status, purposeTexts, nowSeconds }: { metadata: V
         <p className="mb-4 text-xs uppercase tracking-widest text-slate-400">Balances</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Total Allocation" value={formatTokenAmount(metadata.totalAllocation)} />
-          <Field label="Vested Amount" value={formatTokenAmount(status.vestedAmount)} />
+          <Field label="Unlocked Amount" value={formatTokenAmount(status.vestedAmount)} />
           <Field label="Available to Withdraw" value={formatTokenAmount(status.availableToWithdraw)} />
           <Field label="Total Withdrawn" value={formatTokenAmount(status.totalWithdrawn)} />
           <Field label="Protected Balance" value={formatTokenAmount(status.protectedOutstandingBalance)} />
@@ -313,7 +313,6 @@ function StatusTab({ metadata, status, purposeTexts, nowSeconds }: { metadata: V
             <CopyableAddress value={metadata.owner} className="mt-1 text-sm text-slate-100" />
           </div>
           <Field label="Start Time" value={formatUnixSeconds(metadata.startTime)} />
-          <Field label="Cliff" value={formatDurationSeconds(metadata.cliffDuration)} />
           <Field label="Interval" value={`${formatDurationSeconds(metadata.intervalDuration)} × ${metadata.intervalCount}`} />
           <Field label="Withdrawal Delay" value={formatDurationSeconds(metadata.withdrawalDelay)} />
           <Field label="Cancel Window" value={formatDurationSeconds(metadata.cancelWindow)} />

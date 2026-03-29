@@ -57,7 +57,7 @@ export default function HomePage() {
         <div className="rounded-3xl border border-emerald-300/20 bg-emerald-300/10 p-5">
           <p className="text-sm uppercase tracking-[0.25em] text-emerald-200/70">Status</p>
           <p className="mt-2 text-sm leading-6 text-emerald-50/90">
-            Live vault state derived from indexed events plus time-based vesting math.
+            Live vault state derived from indexed events plus time-based unlock math.
           </p>
         </div>
         <div className="rounded-3xl border border-sky-300/20 bg-sky-300/10 p-5">

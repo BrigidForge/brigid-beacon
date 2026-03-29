@@ -28,8 +28,8 @@ Beacon tracks official vaults deployed through the Brigid factory and provides:
 
 - Current chain focus: `BSC testnet`
 - Current chain ID: `97`
-- Current canonical factory: `0xFc946E68886841B20c33b4449578c4cC35De5165`
-- Current start block: `95886539`
+- Current canonical factory: `0x60FbD281f54b0E11FFc79F4A5b27874436383448`
+- Current start block: `98470109`
 - First validation vault: `0x813bd049593844d8350b055c5b08d713fcfa4d3f`
 - Validation token: `0x6f0F380C1cC5fFDb1a5eC9e5dF937aAc6BB49C62`
 
@@ -49,8 +49,8 @@ Expected local env shape:
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/beacon_bsc_testnet
 CHAIN_ID=97
 RPC_URL=https://bsc-testnet.nodereal.io/v1/<your-key>
-FACTORY_ADDRESS=0xFc946E68886841B20c33b4449578c4cC35De5165
-START_BLOCK=95886539
+FACTORY_ADDRESS=0x60FbD281f54b0E11FFc79F4A5b27874436383448
+START_BLOCK=98470109
 POLL_INTERVAL_MS=60000
 BLOCK_CHUNK_SIZE=5000
 CONFIRMATIONS=0

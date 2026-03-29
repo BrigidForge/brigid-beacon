@@ -26,9 +26,22 @@ function parseOrigins(value: string | undefined): string[] {
   return value.split(',').map((entry) => entry.trim()).filter(Boolean);
 }
 
+function validateSecret(name: string, value: string | null): string | null {
+  if (value == null) return null;
+  if (value.length < 32) {
+    throw new Error(`${name} must be at least 32 characters long.`);
+  }
+  return value;
+}
+
 export type ApiConfig = ReturnType<typeof getApiConfig>;
 
 export function getApiConfig() {
+  const publicEmailLinkSecret = validateSecret(
+    'PUBLIC_EMAIL_LINK_SECRET',
+    optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET') ?? null,
+  );
+
   return {
     port: optionalNumber('PORT', 3000),
     host: optionalString('HOST') ?? '0.0.0.0',
@@ -49,7 +62,7 @@ export function getApiConfig() {
     telegramLinkSecret: optionalString('TELEGRAM_LINK_SECRET') ?? null,
     telegramWebhookSecret: optionalString('TELEGRAM_WEBHOOK_SECRET') ?? null,
     publicAppBaseUrl: optionalString('PUBLIC_APP_BASE_URL') ?? optionalString('VITE_API_BASE_URL') ?? null,
-    publicEmailLinkSecret: optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET') ?? null,
+    publicEmailLinkSecret,
     brevoApiKey: optionalString('BREVO_API_KEY') ?? null,
     publicEmailFromAddress: optionalString('SES_FROM_EMAIL') ?? 'beacon-notifications@brigidforge.com',
     webPushVapidSubject: optionalString('WEB_PUSH_VAPID_SUBJECT') ?? 'mailto:beacon-notifications@brigidforge.com',

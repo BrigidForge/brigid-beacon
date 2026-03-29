@@ -67,7 +67,7 @@ function computeVestedAmount(metadata: VaultMetadata, now: number): bigint {
   }
 
   const elapsedSinceCliff = now - cliffEnd;
-  let intervalsVested = Math.floor(elapsedSinceCliff / intervalDuration) + 1;
+  let intervalsVested = Math.floor(elapsedSinceCliff / intervalDuration);
   if (intervalsVested > intervalCount) {
     intervalsVested = intervalCount;
   }

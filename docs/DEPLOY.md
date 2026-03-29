@@ -2,6 +2,8 @@
 
 This document is the practical deployment checklist for shipping local Beacon changes to a hosted environment.
 
+For the final production cutover values and launch-day validation steps, also follow [`/home/dev/brigid-forge/docs/BrigidForge_Mainnet_Launch_Checklist_2026-03-28.md`](/home/dev/brigid-forge/docs/BrigidForge_Mainnet_Launch_Checklist_2026-03-28.md).
+
 ## Deployment Model
 
 Beacon is designed so that:
@@ -148,6 +150,7 @@ Normal Beacon deploys must not mutate production schema or production data struc
 - `scripts/deploy-hosted.sh` does not run Prisma schema commands
 - normal `git push` / deploy flow should only update code, build assets, and restart services
 - local `npm run db:push` and `npm run db:migrate` now refuse production-like targets by default
+- the repo now includes a checked-in baseline migration under `prisma/migrations/`
 
 Intentional production schema changes must use:
 
@@ -173,20 +176,45 @@ MIGRATION_DATABASE_URL=postgresql://... \
 npm run db:migrate:prod
 ```
 
+If the production database already has the current Beacon schema and you are only baselining migration history, mark the baseline migration as applied instead of re-running table creation:
+
+```bash
+ALLOW_PROD_DB_WRITE=yes \
+PROD_DB_TARGET_CONFIRMATION=beacon-production \
+MIGRATION_DATABASE_URL=postgresql://... \
+npm run db:migrate:resolve:prod -- 20260328101604_initial_baseline
+```
+
 Recommended operational split:
 
 - `DATABASE_URL` for app runtime only
 - `MIGRATION_DATABASE_URL` for explicit admin-led schema changes only
 
-## Current Canonical Runtime Facts
+Recommended operator checks before a schema change:
 
-Current reference deployment assumptions:
+- `npm run db:status`
+- confirm the migration target is the intended database
+- apply `npm run db:migrate:prod` only after reviewing pending migrations
+
+## Current Local Reference Facts
+
+Current checked-in reference values are still testnet defaults:
 
 - Chain: `BSC testnet`
 - Chain ID: `97`
-- Factory: `0xFc946E68886841B20c33b4449578c4cC35De5165`
-- Start block: `95886539`
+- Factory: `0x60FbD281f54b0E11FFc79F4A5b27874436383448`
+- Start block: `98470109`
 - Validation vault: `0x813bd049593844d8350b055c5b08d713fcfa4d3f`
+
+For mainnet deployment, treat these as placeholders only. Update:
+
+- `CHAIN_ID=56`
+- `RPC_URL`
+- `FACTORY_ADDRESS`
+- `START_BLOCK`
+- `EXPLORER_BASE_URL=https://bscscan.com`
+- every vault-ui build env value that still points at testnet
+- all launch-day values listed in [`/home/dev/brigid-forge/docs/BrigidForge_Mainnet_Launch_Checklist_2026-03-28.md`](/home/dev/brigid-forge/docs/BrigidForge_Mainnet_Launch_Checklist_2026-03-28.md)
 
 ## Env And Topology Notes
 

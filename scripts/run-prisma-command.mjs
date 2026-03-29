@@ -16,6 +16,12 @@ const commandMap = {
     envVar: 'DATABASE_URL',
     requiresWrite: false,
   },
+  'migrate-status': {
+    label: 'Prisma migrate status',
+    args: ['migrate', 'status'],
+    envVar: 'DATABASE_URL',
+    requiresWrite: false,
+  },
   'db-push': {
     label: 'Prisma db push',
     args: ['db', 'push'],
@@ -45,6 +51,15 @@ const commandMap = {
     requiresWrite: true,
     allowProductionLike: true,
     requireExplicitProdIntent: true,
+  },
+  'prod-migrate-resolve-applied': {
+    label: 'Production Prisma migrate resolve --applied',
+    args: ['migrate', 'resolve', '--applied'],
+    envVar: 'MIGRATION_DATABASE_URL',
+    requiresWrite: true,
+    allowProductionLike: true,
+    requireExplicitProdIntent: true,
+    requiresAdditionalArgs: true,
   },
 };
 
@@ -139,6 +154,11 @@ if (selectedCommand.requireExplicitProdIntent) {
     console.error(`${selectedCommand.label} refused: set PROD_DB_TARGET_CONFIRMATION=beacon-production to confirm the exact target.`);
     process.exit(1);
   }
+}
+
+if (selectedCommand.requiresAdditionalArgs && passthroughArgs.length === 0) {
+  console.error(`${selectedCommand.label} requires at least one additional argument, such as a migration name.`);
+  process.exit(1);
 }
 
 const env = {

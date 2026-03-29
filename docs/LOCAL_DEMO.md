@@ -28,9 +28,9 @@ Beacon is currently validated against **BSC testnet**, not the older Anvil-only 
 - Chain: `BSC testnet`
 - Chain ID: `97`
 - Canonical factory:
-  `0xFc946E68886841B20c33b4449578c4cC35De5165`
+  `0x60FbD281f54b0E11FFc79F4A5b27874436383448`
 - Factory deployment start block:
-  `95886539`
+  `98470109`
 
 ### First indexed validation vault
 
@@ -56,8 +56,8 @@ PORT=3000
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/beacon_bsc_testnet
 CHAIN_ID=97
 RPC_URL=https://bsc-testnet.nodereal.io/v1/<your-key>
-FACTORY_ADDRESS=0xFc946E68886841B20c33b4449578c4cC35De5165
-START_BLOCK=95886539
+FACTORY_ADDRESS=0x60FbD281f54b0E11FFc79F4A5b27874436383448
+START_BLOCK=98470109
 POLL_INTERVAL_MS=60000
 BLOCK_CHUNK_SIZE=5000
 CONFIRMATIONS=0

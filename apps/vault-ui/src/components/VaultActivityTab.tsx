@@ -13,9 +13,9 @@ function summarizeEvent(event: NormalizedEvent, purposeTexts: Record<string, str
     case 'vault_created':
       return { title: 'Vault created', detail: `Owner ${shortenAddress(String(payload.owner ?? event.vaultAddress))} locked the schedule on-chain.`, accent };
     case 'vault_funded':
-      return { title: 'Vault funded', detail: 'Protected vesting principal reached the vault.', amount, accent };
+      return { title: 'Vault funded', detail: 'Protected allocation principal reached the vault.', amount, accent };
     case 'protected_withdrawal_requested':
-      return { title: 'Protected withdrawal requested', detail: purposeText ? `Reason: ${purposeText}` : 'A vested principal withdrawal entered the request flow.', amount, accent };
+      return { title: 'Protected withdrawal requested', detail: purposeText ? `Reason: ${purposeText}` : 'A protected allocation withdrawal entered the request flow.', amount, accent };
     case 'excess_withdrawal_requested':
       return { title: 'Excess withdrawal requested', detail: purposeText ? `Reason: ${purposeText}` : 'An excess balance withdrawal entered the request flow.', amount, accent };
     case 'withdrawal_executed':

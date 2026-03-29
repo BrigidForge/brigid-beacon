@@ -81,6 +81,14 @@ function isMissingPublicEmailTableError(error: unknown): boolean {
   );
 }
 
+function isMissingPublicPushTableError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (/PublicPushSubscription/.test(error.message) || /PublicPushDelivery/.test(error.message)) &&
+    /does not exist/.test(error.message)
+  );
+}
+
 async function countActivePublicEmailSubscriptions(prismaClient: typeof prisma): Promise<number> {
   try {
     return await prismaClient.publicEmailSubscription.count({
@@ -106,11 +114,22 @@ async function countActivePublicEmailSubscriptions(prismaClient: typeof prisma):
 }
 
 async function countActivePublicPushSubscriptions(prismaClient: typeof prisma): Promise<number> {
-  return prismaClient.publicPushSubscription.count({
-    where: {
-      disabledAt: null,
-    },
-  });
+  try {
+    return await prismaClient.publicPushSubscription.count({
+      where: {
+        disabledAt: null,
+      },
+    });
+  } catch (error) {
+    if (!isMissingPublicPushTableError(error)) {
+      throw error;
+    }
+
+    logger.warn('Public push subscription table unavailable during dispatcher count', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
 }
 
 async function findMatchingPublicEmailSubscriptions(

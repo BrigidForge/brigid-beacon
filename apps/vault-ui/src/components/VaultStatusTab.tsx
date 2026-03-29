@@ -70,7 +70,7 @@ export function VaultStatusTab(props: {
           <p className="mt-2 text-sm leading-6 text-slate-300">The current withdrawal request is in progress and waiting for its next execution window.</p>
           <dl className="mt-5 grid gap-4 md:grid-cols-2">
             <Row label="Amount" value={formatTokenAmount(activePendingRequest.amount)} />
-            <Row label="Allocation" value={activePendingRequest.requestType === 'protected' ? 'Vested allocation' : 'Surplus allocation'} />
+            <Row label="Allocation" value={activePendingRequest.requestType === 'protected' ? 'Protected allocation' : 'Surplus allocation'} />
             <Row label="Requested at" value={formatUnixSeconds(activePendingRequest.requestedAt)} />
             <Row label="Executable at" value={formatUnixSeconds(activePendingRequest.executableAt)} />
             <Row label="Expires at" value={formatUnixSeconds(activePendingRequest.expiresAt)} />
@@ -85,7 +85,7 @@ export function VaultStatusTab(props: {
         </div>
       ) : null}
 
-      {/* Vesting + Surplus containers */}
+      {/* Vesting allocation + surplus containers */}
       <div className="grid gap-6 lg:grid-cols-2">
 
         {/* Vesting Allocation */}
@@ -132,7 +132,7 @@ export function VaultStatusTab(props: {
         {/* Surplus Funds */}
         <div className="rounded-[2rem] border border-amber-300/20 bg-amber-300/5 p-6">
           <p className="text-sm uppercase tracking-[0.25em] text-amber-300/80">Surplus Funds</p>
-          <p className="mt-1 text-xs text-slate-400">Funds not subject to vesting rules</p>
+          <p className="mt-1 text-xs text-slate-400">Funds not subject to the vesting schedule</p>
           <dl className="mt-6 space-y-4">
             <SubStat
               label="Surplus Available"
@@ -155,7 +155,6 @@ export function VaultStatusTab(props: {
           <p className="mt-2 text-sm leading-6 text-slate-300">These parameters were fixed when the vault was deployed.</p>
           <dl className="mt-5 space-y-4">
             <Row label="Start time" value={formatUnixSeconds(metadata.startTime)} />
-            <Row label="Cliff duration" value={formatDurationSeconds(metadata.cliffDuration)} />
             <Row label="Interval duration" value={formatDurationSeconds(metadata.intervalDuration)} />
             <Row label="Intervals" value={formatNumberString(metadata.intervalCount)} />
             <Row label="Cancel window" value={formatDurationSeconds(metadata.cancelWindow)} />

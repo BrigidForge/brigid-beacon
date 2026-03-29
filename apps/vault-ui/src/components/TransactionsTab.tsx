@@ -10,6 +10,7 @@ import {
   ensureExpectedChain,
   executeWithdrawalTx,
   EXPLORERS,
+  fetchTokenDecimals,
   getWalletApprovalAssistUrl,
   openWalletForSigning,
   readOperatorSnapshot,
@@ -141,6 +142,7 @@ export function TransactionsTab(props: {
   const [requestOverride, setRequestOverride] = useState<RequestLifecycleView | null>(null);
   const [walletApproveUrl, setWalletApproveUrl] = useState<string | null>(null);
   const [walletCountdown, setWalletCountdown] = useState<number | null>(null);
+  const [tokenDecimals, setTokenDecimals] = useState(18);
   const pendingScrollRestoreRef = useRef<number | null>(null);
   const walletCountdownTimerRef = useRef<number | null>(null);
   const CHAIN_SWITCH_MESSAGE = 'Switching wallet to BNB Smart Chain Testnet...';
@@ -239,6 +241,23 @@ export function TransactionsTab(props: {
   }, [props.vaultAddress]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadTokenDecimals() {
+      if (!snapshot) return;
+      const nextDecimals = await fetchTokenDecimals(snapshot.token);
+      if (!cancelled) {
+        setTokenDecimals(nextDecimals);
+      }
+    }
+
+    void loadTokenDecimals();
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshot]);
+
+  useEffect(() => {
     function handleReturnToApp() {
       clearStaleWalletProgress();
       restoreScrollPosition();
@@ -294,7 +313,7 @@ export function TransactionsTab(props: {
     Date.parse(storedOwnerSession.expiresAt) > Date.now();
 
   const canRequest = snapshot != null && walletConnected && hasActiveBeaconSession && !pending && amountInput.trim().length > 0 && purposeInput.trim().length > 0;
-  const requestButtonDisabled = !canRequest || busy || (() => { try { return ethers.parseUnits(amountInput || '0', 18) > selectedAvailable; } catch { return true; } })();
+  const requestButtonDisabled = !canRequest || busy || (() => { try { return ethers.parseUnits(amountInput || '0', tokenDecimals) > selectedAvailable; } catch { return true; } })();
   const showWalletProgress = busy && (walletCountdown != null || walletApproveUrl != null || message === CHAIN_SWITCH_MESSAGE);
   const walletConnectOnDesktop =
     props.walletSession?.kind === 'walletconnect' &&
@@ -432,7 +451,7 @@ export function TransactionsTab(props: {
     <section className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Vested Available</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Protected Available</p>
           <p className="mt-3 text-2xl font-semibold text-white">{formatTokenAmount(snapshot.availableToWithdraw.toString())} {snapshot.tokenSymbol}</p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -457,7 +476,7 @@ export function TransactionsTab(props: {
               <DisabledWalletHint enabled={walletConnected} className="group relative mt-3 block">
                 <select value={withdrawalType} onChange={(e) => setWithdrawalType(e.target.value as 'protected' | 'excess')} disabled={!walletConnected || !hasActiveBeaconSession || pending || busy}
                   className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none">
-                  <option value="protected">Vested Funds</option>
+                  <option value="protected">Protected Funds</option>
                   <option value="excess" disabled={!snapshot.excessSupported}>Surplus Funds</option>
                 </select>
               </DisabledWalletHint>

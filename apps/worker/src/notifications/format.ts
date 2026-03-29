@@ -85,11 +85,11 @@ function formatDelayLabel(requestedAt?: string, executableAt?: string): string |
 }
 
 function requestTypeLabelForEvent(event: DispatcheableEvent): string | null {
-  if (event.kind === 'protected_withdrawal_requested') return 'Vested allocation';
+  if (event.kind === 'protected_withdrawal_requested') return 'Protected allocation';
   if (event.kind === 'excess_withdrawal_requested') return 'Surplus allocation';
 
   const requestType = (event.payload as Record<string, unknown>).requestType;
-  if (requestType === 1 || requestType === 'protected') return 'Vested allocation';
+  if (requestType === 1 || requestType === 'protected') return 'Protected allocation';
   if (requestType === 2 || requestType === 'excess') return 'Surplus allocation';
   return null;
 }

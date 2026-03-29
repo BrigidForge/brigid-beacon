@@ -2,13 +2,13 @@
 
 **Visibility before execution.**
 
-Beacon is the application layer for BrigidVault on BSC testnet: indexing, vault status computation, public viewing, owner withdrawal controls, and notification delivery.
+Beacon is the application layer for BrigidVault: indexing, vault status computation, public viewing, owner withdrawal controls, and notification delivery. The current checked-in local defaults still target BSC testnet and must be explicitly switched for mainnet.
 
 ## Stable Release
 
-- Current stable release: `V1.1.0`
+- Current stable release: `V1.1.10`
 - Previous stable release: `V1.0.0`
-- Release note: `V1.1.0` promotes Beacon to a functioning installable PWA. It keeps the unified `vault-ui` app and adds browser push notifications, iPhone install guidance, public-first PWA onboarding, and a single device-notification setup path through the public vault viewer.
+- Release note: `V1.1.10` promotes Beacon to a functioning installable PWA. It keeps the unified `vault-ui` app and adds browser push notifications, iPhone install guidance, public-first PWA onboarding, and a single device-notification setup path through the public vault viewer.
 
 ## Live Deployment
 
@@ -64,7 +64,7 @@ Important routes:
 - `/operator`
 - `/operator/:vault`
 
-Notable locked-in functionality in `V1.1.0`:
+Notable locked-in functionality in `V1.1.10`:
 
 - unified public and operator UI
 - owner wallet claim flow
@@ -78,13 +78,15 @@ Notable locked-in functionality in `V1.1.0`:
 - public browser push notifications with first-run PWA onboarding
 - consolidated device-level app notification setup through the public vault viewer
 
-## Chain Facts
+## Current Local Defaults
 
 - Chain: BSC testnet
 - Chain ID: `97`
-- Factory: `0xFc946E68886841B20c33b4449578c4cC35De5165`
-- Start block: `95886539`
+- Factory: `0x60FbD281f54b0E11FFc79F4A5b27874436383448`
+- Start block: `98470109`
 - Validation vault: `0x813bd049593844d8350b055c5b08d713fcfa4d3f`
+
+For mainnet, replace all of the above with the actual deployed values before building or deploying.
 
 ## Local Development
 
@@ -100,6 +102,8 @@ Useful commands:
 - `npm run ci`
 - `npm run dev:status`
 - `npm run dev:down`
+- `npm run db:status`
+- `npm run db:migrate`
 
 Recommended local database:
 
@@ -124,6 +128,17 @@ That push triggers the server-side deploy hook, which:
 - restarts `beacon-api.service`
 - restarts `beacon-worker.service`
 - runs health checks
+
+## Prisma Migrations
+
+Beacon now includes a checked-in baseline migration under [`prisma/migrations`](/home/dev/brigid-forge/brigid-beacon/prisma/migrations).
+
+Recommended usage:
+
+- use `npm run db:migrate` for local development changes that should create new migrations
+- use `npm run db:status` to inspect whether a target database is aligned with the migration history
+- use `npm run db:migrate:prod` only for intentional production schema applies with `MIGRATION_DATABASE_URL`
+- if a production database already has the baseline schema and only needs the history marked as applied, use `npm run db:migrate:resolve:prod -- 20260328101604_initial_baseline`
 
 ## Docs
 

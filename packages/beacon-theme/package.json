@@ -1,6 +1,6 @@
 {
   "name": "@brigid/beacon-theme",
-  "version": "1.1.0",
+  "version": "1.1.10",
   "private": true,
   "type": "module",
   "exports": {

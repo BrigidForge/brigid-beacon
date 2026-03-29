@@ -1,6 +1,6 @@
 {
   "name": "beacon-system",
-  "version": "1.1.0",
+  "version": "1.1.10",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -19,10 +19,12 @@
     "dev:down": "node scripts/dev-runtime.mjs down",
     "dev:status": "node scripts/dev-runtime.mjs status",
     "db:generate": "node scripts/run-prisma-command.mjs generate",
+    "db:status": "node scripts/run-prisma-command.mjs migrate-status",
     "db:push": "node scripts/run-prisma-command.mjs db-push",
     "db:migrate": "node scripts/run-prisma-command.mjs migrate-dev",
     "db:push:prod": "node scripts/run-prisma-command.mjs prod-db-push",
-    "db:migrate:prod": "node scripts/run-prisma-command.mjs prod-migrate-deploy"
+    "db:migrate:prod": "node scripts/run-prisma-command.mjs prod-migrate-deploy",
+    "db:migrate:resolve:prod": "node scripts/run-prisma-command.mjs prod-migrate-resolve-applied"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

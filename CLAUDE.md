@@ -232,8 +232,8 @@ with symlinks in `sites-enabled/`.
 |---|---|
 | Chain | BSC testnet |
 | Chain ID | 97 |
-| Factory | `0xFc946E68886841B20c33b4449578c4cC35De5165` |
-| Start block | `95886539` |
+| Factory | `0x60FbD281f54b0E11FFc79F4A5b27874436383448` |
+| Start block | `98470109` |
 | Validation vault | `0x813bd049593844d8350b055c5b08d713fcfa4d3f` |
 
 ---

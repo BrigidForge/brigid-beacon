@@ -28,6 +28,14 @@ function optionalBoolean(name: string, def: boolean): boolean {
   return value === '1' || value === 'true' || value === 'yes' || value === 'on';
 }
 
+function validateSecret(name: string, value: string | undefined): string | undefined {
+  if (value == null || value === '') return undefined;
+  if (value.length < 32) {
+    throw new Error(`${name} must be at least 32 characters long.`);
+  }
+  return value;
+}
+
 export const config = {
   databaseUrl: requireEnv('DATABASE_URL'),
   rpcUrl: requireEnv('RPC_URL'),
@@ -54,7 +62,10 @@ export const config = {
   publicAppBaseUrl: optionalString('PUBLIC_APP_BASE_URL') ?? optionalString('VITE_API_BASE_URL') ?? 'http://localhost:5174',
   brevoApiKey: optionalString('BREVO_API_KEY'),
   sesFromEmail: optionalString('SES_FROM_EMAIL') ?? 'beacon-notifications@brigidforge.com',
-  publicEmailLinkSecret: optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET'),
+  publicEmailLinkSecret: validateSecret(
+    'PUBLIC_EMAIL_LINK_SECRET',
+    optionalString('PUBLIC_EMAIL_LINK_SECRET') ?? optionalString('TELEGRAM_LINK_SECRET'),
+  ),
   publicEmailSubscriptionRetentionDays: optionalEnv('PUBLIC_EMAIL_SUBSCRIPTION_RETENTION_DAYS', 30),
   webPushVapidSubject: optionalString('WEB_PUSH_VAPID_SUBJECT') ?? 'mailto:beacon-notifications@brigidforge.com',
   webPushVapidPublicKey: optionalString('WEB_PUSH_VAPID_PUBLIC_KEY'),

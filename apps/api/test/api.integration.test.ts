@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import { getAddress, Wallet } from 'ethers';
 import { encodePublicEmailActionToken } from '@brigid/beacon-shared-types';
 dotenv.config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
+const { ensureTestDatabase } = await import('../../test-support/ensure-test-db.js');
+await ensureTestDatabase(process.env.DATABASE_URL);
 import { prisma } from '../src/db.js';
 import { buildApp } from '../src/app.js';
 import { getApiConfig } from '../src/config.js';

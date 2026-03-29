@@ -237,7 +237,7 @@ Returns deployment proof (chain, factory, deployer, block, tx hash, constructor 
 ## 7. Public viewer UX (MVP)
 
 - **Vault status banner:** Current state and short summary.
-- **Allocation and withdrawal summary cards:** totalAllocation, totalWithdrawn, totalExcessWithdrawn, vestedAmount, availableToWithdraw, excessBalance.
+- **Allocation and withdrawal summary cards:** totalAllocation, totalWithdrawn, totalExcessWithdrawn, unlocked protected amount (`vestedAmount` in the API), availableToWithdraw, excessBalance.
 - **Pending request countdown:** If state is *request_pending_execution* or *request_executable*, show executableAt/expiresAt and countdown.
 - **Timeline:** Chronological list of normalized events.
 - **Contract configuration rules:** Immutable params (cliff, intervals, cancel window, delay, execution window).

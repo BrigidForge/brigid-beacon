@@ -64,10 +64,12 @@ export const VAULT_ABI = [
 
 export const ERC20_ABI = [
   'function balanceOf(address) view returns (uint256)',
+  'function decimals() view returns (uint8)',
   'function symbol() view returns (string)',
 ] as const;
 
 const tokenSymbolCache = new Map<string, string>();
+const tokenDecimalsCache = new Map<string, number>();
 
 export async function fetchTokenSymbol(tokenAddress: string): Promise<string> {
   const key = tokenAddress.toLowerCase();
@@ -81,6 +83,23 @@ export async function fetchTokenSymbol(tokenAddress: string): Promise<string> {
   } catch {
     return '';
   }
+}
+
+export async function fetchTokenDecimals(tokenAddress: string): Promise<number> {
+  const key = tokenAddress.toLowerCase();
+  if (tokenDecimalsCache.has(key)) return tokenDecimalsCache.get(key)!;
+  try {
+    const provider = new ethers.JsonRpcProvider(DEFAULT_RPC_URL, undefined, { batchMaxCount: 1 });
+    const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    const decimals = Number(await (contract.decimals() as Promise<number>));
+    if (Number.isInteger(decimals) && decimals >= 0) {
+      tokenDecimalsCache.set(key, decimals);
+      return decimals;
+    }
+  } catch {
+    // Fall through to the ERC-20 default.
+  }
+  return 18;
 }
 
 export type OperatorEthereumProvider = {
@@ -637,8 +656,10 @@ export async function requestWithdrawalTx(args: {
   purposeText: string;
   onSubmitted?: (hash: string) => void;
 }): Promise<string> {
-  const amount = ethers.parseUnits(args.amountInput, 18);
   const contract = new ethers.Contract(args.vaultAddress, VAULT_ABI, args.signer);
+  const tokenAddress = (await contract.token()) as string;
+  const tokenDecimals = await fetchTokenDecimals(tokenAddress);
+  const amount = ethers.parseUnits(args.amountInput, tokenDecimals);
   const purposeHash = ethers.id(args.purposeText);
   const tx =
     args.bucket === 'excess'

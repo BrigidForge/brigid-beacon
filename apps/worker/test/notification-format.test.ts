@@ -68,10 +68,10 @@ test('formatNotification includes richer withdrawal request details and viewer l
     'https://vault.brigidforge.com',
   );
 
-  assert.equal(formatted.requestTypeLabel, 'Vested allocation');
+  assert.equal(formatted.requestTypeLabel, 'Protected allocation');
   assert.equal(formatted.delayLabel, '1d');
   assert.equal(formatted.publicViewerLink, 'https://vault.brigidforge.com/view/0x524F04724632eED237cbA3c37272e018b3A7967e');
-  assert.match(formatted.body, /Allocation: Vested allocation/);
+  assert.match(formatted.body, /Allocation: Protected allocation/);
   assert.match(formatted.body, /Reason reference: 0x12345678\.\.\.abcdef/);
   assert.match(formatted.body, /Vault viewer: https:\/\/vault\.brigidforge\.com\/view\//);
 });

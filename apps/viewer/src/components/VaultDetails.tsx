@@ -59,9 +59,9 @@ function SummaryBadge(props: { label: string; value: string; tone?: 'default' | 
 function describeVaultState(status: VaultStatus): string {
   switch (status.state) {
     case 'idle':
-      return status.funded ? 'Funds are present, but vesting has not started to unlock yet.' : 'Waiting for the initial funding transaction.';
+      return status.funded ? 'Funds are present, but the vesting schedule has not started releasing funds yet.' : 'Waiting for the initial funding transaction.';
     case 'active_no_request':
-      return 'Vesting is active and there is no pending withdrawal request.';
+      return 'The vesting schedule is active and there is no pending withdrawal request.';
     case 'protected_request_pending_cancel':
     case 'excess_request_pending_cancel':
       return 'A withdrawal request exists and is still inside the cancel window.';
@@ -73,7 +73,7 @@ function describeVaultState(status: VaultStatus): string {
     case 'request_expired':
       return 'The last withdrawal request expired without being executed.';
     case 'completed_recently':
-      return 'The allocation has effectively finished vesting and recent activity completed.';
+      return 'The allocation has effectively finished unlocking and recent activity completed.';
     case 'canceled_recently':
       return 'The vault was canceled recently and only post-cancel balances may remain.';
     default:
@@ -110,14 +110,14 @@ function summarizeEvent(event: NormalizedEvent): { title: string; detail: string
     case 'vault_funded':
       return {
         title: 'Vault funded',
-        detail: 'Protected vesting principal reached the vault.',
+        detail: 'Vesting allocation principal reached the vault.',
         amount,
         accent: 'border-emerald-300/25 bg-emerald-300/10',
       };
     case 'protected_withdrawal_requested':
       return {
         title: 'Protected withdrawal requested',
-        detail: 'A vested principal withdrawal entered the request flow.',
+        detail: 'A vested allocation withdrawal entered the request flow.',
         amount,
         accent: 'border-sky-300/25 bg-sky-300/10',
       };
@@ -187,7 +187,7 @@ export function VaultDetails(props: {
 
   const protectedCoverage = metadata.totalAllocation === '0'
     ? '0%'
-    : `${Math.min(100, Math.round((Number(status.vestedAmount) / Number(metadata.totalAllocation)) * 100))}% vested`;
+    : `${Math.min(100, Math.round((Number(status.vestedAmount) / Number(metadata.totalAllocation)) * 100))}% unlocked`;
   const totalAvailable = (BigInt(status.availableToWithdraw) + BigInt(status.excessAvailableToWithdraw)).toString();
 
   return (
@@ -219,10 +219,10 @@ export function VaultDetails(props: {
             </p>
           </div>
           <div className="rounded-3xl border border-white/10 bg-slate-950/45 p-5">
-            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Schedule progress</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Vesting progress</p>
             <p className="mt-3 text-lg font-medium text-white">{protectedCoverage}</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              {formatAmountLabel(status.vestedAmount)} vested out of {formatAmountLabel(metadata.totalAllocation)} total allocation.
+              {formatAmountLabel(status.vestedAmount)} unlocked out of {formatAmountLabel(metadata.totalAllocation)} total allocation.
             </p>
           </div>
         </div>
@@ -274,13 +274,13 @@ export function VaultDetails(props: {
         <StatCard
           label="Protected Available"
           value={formatTokenAmount(status.availableToWithdraw)}
-          hint="Vested principal currently available to withdraw."
+          hint="Protected principal currently available to withdraw."
           tone="cool"
         />
         <StatCard
           label="Excess Available"
           value={formatTokenAmount(status.excessAvailableToWithdraw)}
-          hint="Extra balance that can be requested without affecting protected vesting."
+          hint="Extra balance that can be requested without affecting the protected schedule."
           tone="warm"
         />
         <StatCard
@@ -291,10 +291,10 @@ export function VaultDetails(props: {
         <StatCard
           label="Total Allocation"
           value={formatTokenAmount(metadata.totalAllocation)}
-          hint="Immutable protected allocation written into the deployment config."
+          hint="Immutable vested allocation written into the deployment config."
         />
         <StatCard
-          label="Vested Amount"
+          label="Unlocked Amount"
           value={formatTokenAmount(status.vestedAmount)}
           hint="Protected amount unlocked by the schedule so far."
           tone="success"
@@ -367,10 +367,6 @@ export function VaultDetails(props: {
               <div className="flex items-center justify-between gap-4">
                 <dt className="text-sm text-slate-400">Start time</dt>
                 <dd className="text-sm text-white">{formatUnixSeconds(metadata.startTime)}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-sm text-slate-400">Cliff duration</dt>
-                <dd className="text-sm text-white">{formatDurationSeconds(metadata.cliffDuration)}</dd>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <dt className="text-sm text-slate-400">Interval duration</dt>

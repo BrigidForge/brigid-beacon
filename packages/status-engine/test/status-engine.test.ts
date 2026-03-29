@@ -53,7 +53,7 @@ test('returns idle for an unfunded vault', () => {
   assert.equal(status.availableToWithdraw, '0');
 });
 
-test('unlocks the first vesting interval immediately at cliff end', () => {
+test('keeps the cliff as a pure lock period until the first full post-cliff interval', () => {
   const status = computeVaultStatus({
     metadata: createMetadata(),
     events: [
@@ -61,6 +61,22 @@ test('unlocks the first vesting interval immediately at cliff end', () => {
       createEvent({ kind: 'vault_funded', payload: { token: tokenAddress, amount: '1200' }, blockNumber: 11 }),
     ],
     now: 1100,
+  });
+
+  assert.equal(status.state, 'active_no_request');
+  assert.equal(status.vestedAmount, '0');
+  assert.equal(status.availableToWithdraw, '0');
+  assert.equal(status.protectedOutstandingBalance, '1200');
+});
+
+test('unlocks the first vesting interval after one full post-cliff interval', () => {
+  const status = computeVaultStatus({
+    metadata: createMetadata(),
+    events: [
+      createEvent({ kind: 'vault_created', payload: {}, blockNumber: 10 }),
+      createEvent({ kind: 'vault_funded', payload: { token: tokenAddress, amount: '1200' }, blockNumber: 11 }),
+    ],
+    now: 1150,
   });
 
   assert.equal(status.state, 'active_no_request');
@@ -95,7 +111,7 @@ test('tracks a protected request through the cancel window and execution delay',
   assert.equal(status.state, 'protected_request_pending_cancel');
   assert.equal(status.pendingRequest?.isCancelable, true);
   assert.equal(status.pendingRequest?.isExecutable, false);
-  assert.equal(status.availableToWithdraw, '100');
+  assert.equal(status.availableToWithdraw, '0');
 });
 
 test('accounts for protected executions and recent terminal state', () => {
@@ -183,7 +199,7 @@ test('tracks excess deposits and excess withdrawal execution separately from pro
   assert.equal(status.totalWithdrawn, '0');
   assert.equal(status.totalExcessWithdrawn, '150');
   assert.equal(status.excessBalance, '350');
-  assert.equal(status.availableToWithdraw, '600');
+  assert.equal(status.availableToWithdraw, '300');
   assert.equal(status.excessAvailableToWithdraw, '350');
 });
 

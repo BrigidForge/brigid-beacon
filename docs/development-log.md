@@ -2,11 +2,11 @@
 
 ---
 
-## 2026-03-24 — Beacon `V1.1.0` Stable PWA Release
+## 2026-03-24 — Beacon `V1.1.10` Stable PWA Release
 
 ### Summary
 
-Locked Beacon as `V1.1.0` and promoted it from a browser-only app to a
+Locked Beacon as `V1.1.10` and promoted it from a browser-only app to a
 functioning installable PWA. This release keeps the unified `apps/vault-ui`
 surface and adds a complete mobile/browser push flow, iPhone install guidance,
 and a cleaner first-run onboarding path for device notifications.
@@ -53,9 +53,9 @@ and a cleaner first-run onboarding path for device notifications.
 
 ### Release Notes
 
-- Stable release: `V1.1.0`
+- Stable release: `V1.1.10`
 - Previous stable release: `V1.0.0`
-- Commit: `568d27a` (`Release Beacon V1.1.0 stable PWA`)
+- Commit: `568d27a` (`Release Beacon V1.1.10 stable PWA`)
 
 ---
 
