@@ -6,6 +6,7 @@ import {
   FACTORY_BRIGID_VAULT_DEPLOYED_TOPIC,
   FACTORY_VAULT_DEPLOYED_TOPIC,
   dedupeLogs,
+  findFactoryDeploymentLog,
   parseFactoryDeploymentLog,
   readFactoryRegistryVaults,
   reconcileFactoryRegistryVaults,
@@ -119,6 +120,57 @@ test('reconcileFactoryRegistryVaults recovers only missing vaults and dedupes re
 
   assert.equal(recovered.length, 1);
   assert.equal(recovered[0].transactionHash, missingLog.transactionHash);
+});
+
+test('findFactoryDeploymentLog searches large ranges in smaller chunks and returns the first match', async () => {
+  const searchedRanges: Array<{ fromBlock: number; toBlock: number; topics: string[] }> = [];
+  const matchingLog = fakeLog({
+    fragment: 'VaultDeployed',
+    args: [vault, deployer, token, 1_000n, 200n],
+    transactionHash: '0x' + 'ce'.repeat(32),
+    logIndex: 4,
+    blockNumber: 4_005,
+  });
+
+  const provider = {
+    async getLogs(request: { fromBlock: number; toBlock: number; topics: Array<string | null> }) {
+      searchedRanges.push({
+        fromBlock: request.fromBlock,
+        toBlock: request.toBlock,
+        topics: request.topics.filter((topic): topic is string => typeof topic === 'string'),
+      });
+      if (
+        request.fromBlock === 4_001
+        && request.toBlock === 6_000
+        && request.topics[0] === FACTORY_VAULT_DEPLOYED_TOPIC
+      ) {
+        return [matchingLog];
+      }
+      return [];
+    },
+  } as unknown as Parameters<typeof findFactoryDeploymentLog>[0];
+
+  const recovered = await findFactoryDeploymentLog(
+    provider,
+    getAddress('0x00000000000000000000000000000000000000f1'),
+    vault,
+    9_999,
+    1,
+  );
+
+  assert.equal(recovered?.transactionHash, matchingLog.transactionHash);
+  assert.deepEqual(
+    searchedRanges.slice(0, 6).map(({ fromBlock, toBlock }) => ({ fromBlock, toBlock })),
+    [
+      { fromBlock: 1, toBlock: 2_000 },
+      { fromBlock: 1, toBlock: 2_000 },
+      { fromBlock: 2_001, toBlock: 4_000 },
+      { fromBlock: 2_001, toBlock: 4_000 },
+      { fromBlock: 4_001, toBlock: 6_000 },
+      { fromBlock: 4_001, toBlock: 6_000 },
+    ],
+  );
+  assert.equal(searchedRanges.length, 6);
 });
 
 test('readFactoryRegistryVaults returns null when registry methods are unavailable', async () => {

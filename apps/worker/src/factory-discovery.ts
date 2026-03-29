@@ -2,6 +2,7 @@ import { Contract, Interface, getAddress, zeroPadValue, type JsonRpcProvider, ty
 import { BrigidVaultAbi, BrigidVaultFactoryAbi } from '@brigid/beacon-contracts-abi';
 
 const factoryInterface = new Interface([...BrigidVaultFactoryAbi] as never[]);
+const FACTORY_DEPLOYMENT_SEARCH_CHUNK_SIZE = 2_000;
 
 export const FACTORY_VAULT_DEPLOYED_TOPIC = factoryInterface.getEvent('VaultDeployed')!.topicHash;
 export const FACTORY_BRIGID_VAULT_DEPLOYED_TOPIC = factoryInterface.getEvent('BrigidVaultDeployed')!.topicHash;
@@ -120,27 +121,34 @@ export async function findFactoryDeploymentLog(
   fromBlock = 0,
 ): Promise<Log | null> {
   const normalizedVault = getAddress(vaultAddress);
-  const [newEventLogs, legacyEventLogs] = await Promise.all([
-    provider.getLogs({
-      address: factoryAddress,
-      topics: [FACTORY_VAULT_DEPLOYED_TOPIC, zeroPadValue(normalizedVault, 32)],
-      fromBlock,
-      toBlock,
-    }),
-    provider.getLogs({
-      address: factoryAddress,
-      topics: [FACTORY_BRIGID_VAULT_DEPLOYED_TOPIC, null, zeroPadValue(normalizedVault, 32)],
-      fromBlock,
-      toBlock,
-    }),
-  ]);
+  for (let chunkStart = fromBlock; chunkStart <= toBlock; chunkStart += FACTORY_DEPLOYMENT_SEARCH_CHUNK_SIZE) {
+    const chunkEnd = Math.min(toBlock, chunkStart + FACTORY_DEPLOYMENT_SEARCH_CHUNK_SIZE - 1);
+    const [newEventLogs, legacyEventLogs] = await Promise.all([
+      provider.getLogs({
+        address: factoryAddress,
+        topics: [FACTORY_VAULT_DEPLOYED_TOPIC, zeroPadValue(normalizedVault, 32)],
+        fromBlock: chunkStart,
+        toBlock: chunkEnd,
+      }),
+      provider.getLogs({
+        address: factoryAddress,
+        topics: [FACTORY_BRIGID_VAULT_DEPLOYED_TOPIC, null, zeroPadValue(normalizedVault, 32)],
+        fromBlock: chunkStart,
+        toBlock: chunkEnd,
+      }),
+    ]);
 
-  const combined = dedupeLogs([...newEventLogs, ...legacyEventLogs]).sort((a, b) => {
-    const blockCmp = a.blockNumber - b.blockNumber;
-    return blockCmp !== 0 ? blockCmp : a.index - b.index;
-  });
+    const combined = dedupeLogs([...newEventLogs, ...legacyEventLogs]).sort((a, b) => {
+      const blockCmp = a.blockNumber - b.blockNumber;
+      return blockCmp !== 0 ? blockCmp : a.index - b.index;
+    });
 
-  return combined[0] ?? null;
+    if (combined[0]) {
+      return combined[0];
+    }
+  }
+
+  return null;
 }
 
 export async function readFactoryRegistryVaults(factoryContract: FactoryRegistryContract): Promise<string[] | null> {
