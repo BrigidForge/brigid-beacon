@@ -12,6 +12,7 @@ import { JsonRpcProvider } from 'ethers';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { runIndexerCycle } from './indexer.js';
+import { isBlockRangeTooLargeError, shrinkBlockChunkSize } from './indexer-chunking.js';
 import { runDispatcherCycle } from './dispatcher.js';
 import { runCleanupCycle } from './cleanup.js';
 import { markDispatcherRun, markIndexerError, markIndexerSuccess } from './ops-state.js';
@@ -48,6 +49,16 @@ async function main() {
       pollIntervalMs = inSteadyState ? config.steadyStatePollIntervalMs : config.pollIntervalMs;
       blockChunkSize = inSteadyState ? config.steadyStateBlockChunkSize : config.blockChunkSize;
     } catch (err) {
+      if (isBlockRangeTooLargeError(err)) {
+        const nextBlockChunkSize = shrinkBlockChunkSize(blockChunkSize);
+        if (nextBlockChunkSize !== blockChunkSize) {
+          logger.warn('RPC rejected current block range; shrinking indexer chunk size', {
+            blockChunkSize,
+            nextBlockChunkSize,
+          });
+          blockChunkSize = nextBlockChunkSize;
+        }
+      }
       await markIndexerError(err instanceof Error ? err.message : String(err));
       logger.error('Indexer cycle error', {
         error: err instanceof Error ? err.message : String(err),
