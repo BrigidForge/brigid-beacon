@@ -110,7 +110,7 @@ test('VaultDetails renders seeded vault summary, events, and proof', () => {
   );
 
   assert.match(html, /Completed Recently/);
-  assert.match(html, /Schedule progress/);
+  assert.match(html, /Vesting progress/);
   assert.match(html, /850 available now/);
   assert.match(html, /Extra tokens arrived/);
   assert.match(html, /Event Timeline/);
